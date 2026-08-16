@@ -1,0 +1,2010 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  THE IBP CYCLE — GAMIFIED EDITION v1
+  ============================================================================
+
+  Concept, model design, and scenario architecture by Sushant Turekar.
+  © 2026 Sushant Turekar. All rights reserved.
+
+  Built on the original IBP Cycle simulator (2026-08-08). This edition adds:
+    · a wall map with live freight movement across the lead-time network
+    · three-tier freight — ocean, air, and same-cycle emergency charter
+    · a named supervisor with a recent-weighted trust meter
+    · termination endings after a Q1 grace period
+    · warehouses rendered by region with brand drill-down
+    · a running ledger
+
+  Not licensed for redistribution or derivative use without written
+  permission. If you received this file, you received a copy — not a title.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="author" content="Sushant Turekar">
+<meta name="copyright" content="© 2026 Sushant Turekar">
+<meta name="description" content="The IBP Cycle, Gamified Edition — an integrated business planning simulator. Designed by Sushant Turekar.">
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The IBP Cycle — Gamified Edition | Sushant Turekar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+:root{
+  --ground:#0C141D; --panel:#131E2A; --panel2:#0F1926; --line:#22313F;
+  --ink:#E6EDF4; --dim:#7D8FA1; --dimmer:#55677A;
+  --demand:#E8654F; --supply:#3EB4C4; --amber:#E5A33C; --green:#4FBF7B; --red:#DE4B4B;
+  --air:#E5A33C; --charter:#E8654F;
+}
+html,body{margin:0;padding:0;background:var(--ground)}
+body{color:var(--ink);font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:13px;line-height:1.5;padding:20px}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3,.disp{font-family:'Archivo',system-ui,sans-serif;letter-spacing:-.01em}
+.eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
+.wrap{max-width:1180px;margin:0 auto}
+.masthead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px;gap:16px;flex-wrap:wrap}
+.masthead h1{margin:4px 0 0;font-size:26px;font-weight:800}
+.clock{text-align:right}
+.clock .big{font-family:'Archivo',sans-serif;font-size:30px;font-weight:800;line-height:1}
+.grid{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.grid>div:last-child{order:-1}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;margin-bottom:14px}
+.ph{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.step{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;color:var(--ground);background:var(--dim);width:20px;height:20px;display:grid;place-items:center;border-radius:2px;flex:none}
+.ph h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.ph .note{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim)}
+.pb{padding:12px 14px}
+table{width:100%;border-collapse:collapse}
+th{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);font-weight:500;text-align:right;padding:0 6px 7px;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+td{padding:6px;border-bottom:1px solid rgba(34,49,63,.55);text-align:right;font-family:'IBM Plex Mono',monospace;font-size:12px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.brand{font-family:'Archivo',sans-serif;font-weight:700;font-size:12px;letter-spacing:.02em}
+.sub{color:var(--dimmer);font-size:10px;font-family:'IBM Plex Mono',monospace}
+input[type=number]{width:78px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:4px 6px;border-radius:2px;text-align:right}
+input[type=number]:focus{outline:2px solid var(--supply);outline-offset:0;border-color:transparent}
+input[type=range]{width:100%;accent-color:var(--supply)}
+select{background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 6px;border-radius:2px;max-width:100%}
+button{font-family:'Archivo',sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);background:var(--panel2);color:var(--ink);padding:9px 14px;border-radius:2px;cursor:pointer}
+button:hover{border-color:var(--supply)}
+button:focus-visible{outline:2px solid var(--supply);outline-offset:2px}
+.primary{background:var(--supply);color:#06131A;border-color:var(--supply)}
+.primary:hover{filter:brightness(1.12)}
+.primary:disabled{opacity:.4;cursor:not-allowed}
+.bal{height:26px;background:var(--panel2);border:1px solid var(--line);position:relative;border-radius:2px;overflow:hidden;min-width:120px}
+.bal .sup{position:absolute;left:0;top:0;bottom:0;background:rgba(62,180,196,.32);border-right:2px solid var(--supply);transition:width .3s ease}
+.bal .dmk{position:absolute;top:0;bottom:0;width:2px;background:var(--demand);transition:left .3s ease}
+.bal .lbl{position:absolute;right:7px;top:50%;transform:translateY(-50%);font-family:'IBM Plex Mono',monospace;font-size:11px}
+.kpi{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid rgba(34,49,63,.6)}
+.kpi:last-child{border-bottom:none}
+.kpi .v{font-family:'Archivo',sans-serif;font-weight:800;font-size:19px}
+.kpi .t{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer)}
+.sig{display:flex;gap:9px;padding:9px 11px;border:1px solid var(--line);border-left-width:3px;background:var(--panel2);border-radius:2px;margin-bottom:8px;font-size:12px}
+.sig.hot{border-left-color:var(--demand)}
+.sig.cold{border-left-color:var(--supply)}
+.sig.flat{border-left-color:var(--dimmer)}
+.prov{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer);margin-top:5px;letter-spacing:.02em}
+.sig .tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);flex:none;padding-top:2px;width:92px;line-height:1.35}
+.good{color:var(--green)} .bad{color:var(--red)} .warn{color:var(--amber)} .dim{color:var(--dim)}
+.foot{color:var(--dimmer);font-size:10.5px;font-family:'IBM Plex Mono',monospace;margin-top:9px;padding-top:8px;border-top:1px solid rgba(34,49,63,.6)}
+.cap{height:9px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;position:relative;overflow:hidden}
+.cap i{position:absolute;left:0;top:0;bottom:0;display:block;transition:width .25s ease}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.tbar{height:4px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.tbar i{display:block;height:100%;width:100%;background:var(--supply);transition:width .25s linear}
+.stepline{display:flex;gap:5px;margin-bottom:14px}
+.stepline i{flex:1;height:3px;background:var(--line);border-radius:2px}
+.stepline i.on{background:var(--supply)}
+.stepline i.now{background:var(--amber)}
+
+/* ---------- boss strip ---------- */
+.boss{display:flex;gap:14px;align-items:stretch;background:var(--panel);border:1px solid var(--line);border-radius:3px;padding:12px 14px;margin-bottom:14px}
+.boss .por{flex:none;width:56px}
+.boss .body{flex:1;min-width:0}
+.boss .nm{font-family:'Archivo',sans-serif;font-weight:700;font-size:13px}
+.boss .ti{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer);letter-spacing:.06em;text-transform:uppercase}
+.boss .ln{margin-top:7px;font-size:13.5px;line-height:1.45;font-style:italic;color:var(--ink)}
+.boss .ln:before{content:'“'} .boss .ln:after{content:'”'}
+.tmeter{flex:none;width:190px;display:flex;flex-direction:column;justify-content:center;gap:5px}
+@media(max-width:760px){.boss{flex-wrap:wrap}.tmeter{width:100%}}
+.tbarwrap{height:12px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;position:relative;overflow:hidden}
+.tbarwrap i.fill{position:absolute;left:0;top:0;bottom:0;transition:width .5s ease}
+.tbarwrap i.mark{position:absolute;top:0;bottom:0;width:1px}
+.tlabel{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:10px}
+
+/* ---------- wall map ---------- */
+.mapwrap{background:var(--panel2);border:1px solid var(--line);border-radius:2px;padding:6px;overflow-x:auto}
+.mapwrap svg{display:block;min-width:820px;width:100%;height:auto}
+.vessel{transition:transform 1.1s cubic-bezier(.4,0,.2,1)}
+.whbox{cursor:pointer}
+.whbox:hover .whring{stroke:var(--supply)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer)}
+.legend span i{display:inline-block;width:9px;height:9px;border-radius:1px;margin-right:4px;vertical-align:-1px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- gauges ---------- */
+.gaugerow{display:grid;grid-template-columns:170px 1fr;gap:16px;align-items:center}
+@media(max-width:620px){.gaugerow{grid-template-columns:1fr}}
+.airpool{height:14px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;position:relative;overflow:hidden}
+.airpool i{position:absolute;left:0;top:0;bottom:0;background:var(--air);transition:width .25s ease}
+
+/* ---------- ledger ---------- */
+.ledger td,.ledger th{font-size:11px;padding:4px 5px}
+.ledger .tot td{border-top:1px solid var(--line);font-weight:600}
+</style>
+</head>
+<body>
+<noscript>
+<div class="wrap" style="max-width:640px;margin:60px auto;padding:24px;border:1px solid #22313F;background:#131E2A;border-radius:3px">
+  <div class="eyebrow">The IBP Cycle</div>
+  <h1 style="margin:6px 0 14px;font-size:24px">You are looking at a preview, not the game</h1>
+  <p style="color:#7D8FA1">This file is an interactive simulator. It needs a real browser to run.</p>
+</div>
+</noscript>
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============================================================
+   THE IBP CYCLE — GAMIFIED EDITION
+   12-month integrated business planning sim
+   3 consumer-health brands x 3 supply regions
+   ============================================================ */
+
+var PRODUCTS = [
+  { id:"pain",  name:"ReliefMax",  cat:"Pain",      cogs:2.60, price:4.20, cap:1.00, vol:0.07 },
+  { id:"sleep", name:"NoctaRest",  cat:"Sleep",     cogs:3.70, price:6.50, cap:1.15, vol:0.16 },
+  { id:"gut",   name:"DigestEase", cat:"Digestive", cogs:5.20, price:9.80, cap:1.40, vol:0.26 }
+];
+
+var MARKETS = [
+  { id:"na",   name:"North America & Mexico",  short:"NA",   lt:1, mult:1.00 },
+  { id:"saeu", name:"South America & Europe",  short:"SA/EU",lt:2, mult:0.88 },
+  { id:"apac", name:"China, India & Australia",short:"APAC", lt:3, mult:0.72 }
+];
+
+var BASE = {
+  pain:  { na:545, saeu:255, apac:140 },
+  sleep: { na:223, saeu:104, apac:58  },
+  gut:   { na:116, saeu:54,  apac:30  }
+};
+
+var SEASON = {
+  pain:  [1.00,1.02,0.98,1.00,1.03,0.99,1.01,1.00,0.98,1.02,1.00,1.01],
+  sleep: [0.85,0.90,1.00,1.15,1.35,1.60,1.85,1.70,1.30,1.00,0.85,0.80],
+  gut:   [1.00,1.08,1.16,1.24,1.32,1.40,1.48,1.56,1.64,1.72,1.80,1.88]
+};
+
+function sIdx(r){ return ((r-1)%12+12)%12; }
+var MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+var CAP_BASE = 1800, CARRY_MO = 0.0183, OT_CAP = 0.15, OT_PREMIUM = 0.40;
+
+/* ---------- overtime fatigue ----------
+   A flat premium made overtime a standing policy: build above capacity every
+   month and you are never short, so the freight desk never matters. Consecutive
+   overtime months now escalate — labour, deferred maintenance, and a line that
+   has not been allowed to cool. One tactical month is still cheap. Eleven is
+   not. Reset the streak and the rate resets with it.                          */
+var OT_STREAK_STEP = 0.20, OT_STREAK_MAX = 6;
+function otPremiumFor(streak){ return OT_PREMIUM*(1+OT_STREAK_STEP*Math.min(streak||0,OT_STREAK_MAX)); }
+
+/* ---------- freight ----------
+   Ocean/road is the baseline rate per K units on each lane. Air lands next
+   cycle at 4x. Emergency charter lands THIS cycle at 10x. Air of any kind is
+   drawn from a finite charter pool, because cost alone never stopped a
+   panicking planner — a hard ceiling does.                                   */
+var FREIGHT   = { na:0.05, saeu:0.09, apac:0.15 };
+var AIR_STD   = 4;
+var AIR_CHTR  = 10;
+var AIR_POOL  = 220;   /* K units of air capacity per cycle */
+
+function freightRate(m,mode){
+  return FREIGHT[m] * (mode==="chtr" ? AIR_CHTR : (mode==="air" ? AIR_STD : 1));
+}
+function freightCost(units,m,mode){ return units*freightRate(m,mode); }
+
+/* __IBP_ATTRIBUTION__ build integrity block — do not remove */
+var __IBP_ATTRIBUTION__ = "U3VzaGFudCBUdXJla2FyfDIwMjYtMDgtMDh8VGhlIElCUCBDeWNsZXxvcmlnaW5hbCBkZXNpZ24=";
+var __IBP_FP__ = "g1-aircharter-trust";
+try{ console.log("%cThe IBP Cycle — Gamified", "font:700 15px sans-serif;color:#3EB4C4",
+  "\n  Designed by Sushant Turekar\n  © 2026 Sushant Turekar. All rights reserved."); }catch(e){}
+
+var SEED = 20260805, SHARED_SEED = 20260805, TRADE_WOS = 4;
+
+var MODES = {
+  career:  { key:"career",  name:"Career",  tier:"Timed",
+             cap:1800, clock1:240000, clock:120000, trade:true, lag:1, ss0:4, cycles:12,
+             blurb:"Four minutes for January, then two minutes a cycle. The clock commits for you when it runs out. Vos is watching from month one — but nothing is fatal before the end of Q1." },
+  sandbox: { key:"sandbox", name:"Sandbox", tier:"Untimed",
+             cap:1800, clock1:0, clock:0, trade:true, lag:1, ss0:4, cycles:12, notes:true,
+             blurb:"The same twelve cycles with no clock. Everything else is live — trust, the charter pool, and the termination rules. Best for a first run." },
+  pressure:{ key:"pressure",name:"Pressure",tier:"Hard",
+             cap:1750, clock1:120000, clock:60000, trade:true, lag:2, ss0:4, cycles:12,
+             blurb:"Capacity is short all year, the clock is one minute, and consumption data arrives two months late. You commit to a lane you cannot see clearly." }
+};
+var LOCK = null;
+var MODE = MODES.sandbox;
+var TEAM = "";
+
+/* ---------- the supervisor ---------- */
+var BOSS = { name:"Anneke Vos", title:"SVP, Global Supply Chain" };
+var TRUST_START = 60, TRUST_FIRE = 22, TRUST_WARN = 35, GRACE_ROUNDS = 3;
+
+/* ---------- deterministic noise ---------- */
+function strHash(s){var h=0;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return h;}
+function rnd(r,p,m){
+  var h=(SEED^(r*73856093)^(strHash(p)*19349663)^(strHash(m)*83492791))|0;
+  h=Math.imul(h^(h>>>16),2246822507); h=Math.imul(h^(h>>>13),3266489909); h^=h>>>16;
+  return (h>>>0)/4294967296;
+}
+
+/* ---------- scripted events ---------- */
+function eventMult(r,p,m){
+  var x=1;
+  if(r===3  && p==="pain"  && m==="na")   x*=1.38;
+  if(r===6  && p==="gut"   && m==="apac") x*=1.45;
+  if(r===8  && p==="sleep" && m==="saeu") x*=1.08;
+  if(r===11 && p==="sleep")               x*=0.70;
+  return x;
+}
+function capacityFor(r){ var c=MODE.cap; return r===5 ? Math.round(c*0.70) : c; }
+function leadTime(r,m){
+  if(r===7 && m==="apac") return 4;
+  for(var i=0;i<MARKETS.length;i++) if(MARKETS[i].id===m) return MARKETS[i].lt;
+  return 1;
+}
+
+var SIGNALS = {
+  1:[{src:"Finance", tone:"flat", v:"plan document · verified", txt:"Annual operating plan is locked. Portfolio target is 98% case fill at 75 days of inventory. Overtime is available but lands in the brand P&L, not a central budget. So does freight."},
+     {src:"Category", tone:"flat", v:"syndicated scanner data · verified", txt:"Analgesics and digestive categories opened the year in line with seasonal norm. No competitive activity of note."}],
+
+  2:[{src:"Regulatory", tone:"hot", v:"regulatory filing · verified", txt:"A competitor has filed a lot-level recall on three lots of a 200mg analgesic across the United States and Canada, effective immediately. That brand holds roughly 14% share of NA analgesics. Their remediation is expected to take one to two months."},
+     {src:"Trade — NA", tone:"hot", v:"account order book · verified", txt:"Two of our top four NA accounts have raised standing orders on ReliefMax ahead of the shelf gap. Expect orders to run ahead of consumption while they build cover, then normalise."}],
+
+  3:[{src:"Commercial — APAC", tone:"hot", v:"signed distribution agreement · verified", txt:"DigestEase has won listings in roughly 2,400 pharmacies in China and 900 in Australia. First shelf date is three months out. Field estimate is a lift of about 45% on the APAC base once distribution is fully built."},
+     {src:"Supply", tone:"cold", v:"system lead times · verified", txt:"Note the lane. APAC ocean transit is three months. Production committed this cycle is the last that can land in time for the listing date by sea. Air exists, and it is ten times the rate to land it inside the month."}],
+
+  4:[{src:"Operations", tone:"cold", v:"maintenance calendar · confirmed", txt:"Line 2 is down eleven days next cycle for planned preventive maintenance. Standard capacity falls roughly 30% for the month. The remaining line can still run overtime."},
+     {src:"Procurement", tone:"flat", v:"supplier notice · confirmed", txt:"Carton supplier has notified a 4% price increase effective next quarter. No impact on availability or lead time."}],
+
+  5:[{src:"Trade — Europe", tone:"hot", v:"account order book · verified", txt:"Category buyers at three European accounts have raised cover on NoctaRest ahead of the Q3 sleep promotion. Weeks of supply at retail are moving from roughly four weeks toward six. Order intake will run ahead of consumption while they build."},
+     {src:"Category", tone:"flat", v:"syndicated scanner data · verified", txt:"European sleep-aid consumption is tracking to seasonal norm. Nothing in the scanner data yet suggests the category itself is accelerating."}],
+
+  6:[{src:"Logistics", tone:"cold", v:"carrier advisory · confirmed", txt:"Congestion at the Asia gateway is adding roughly 28 days to ocean transit. APAC sea lead time runs at four months for the next cycle. Bookings already on the water are unaffected. Air lanes are unaffected — and priced accordingly."},
+     {src:"Commercial — APAC", tone:"hot", txt:"DigestEase listings go live this month. Sell-in to fill the new shelf space is incremental to normal consumption and will not repeat."}],
+
+  7:[{src:"Sales — Europe", tone:"hot", v:"verbal · no mechanic, funding line or account list on file", txt:"'The Q3 sleep promo is going to be huge. Plan for a 40% lift on NoctaRest.' The brief names no mechanic, no funding line and no participating accounts. Marketing has not confirmed a promotional calendar entry."},
+     {src:"Category", tone:"flat", v:"syndicated scanner data · verified", txt:"European sleep consumption in the latest reading is up 8% year on year, in line with the seasonal curve. Retail weeks of supply are running roughly two weeks above normal."}],
+
+  8:[{src:"Trade — Europe", tone:"cold", v:"account order book · verified", txt:"European accounts are working down the cover they built. Orders will run below consumption until weeks of supply return to normal."}],
+
+  9:[{src:"Quality", tone:"cold", v:"open investigation · outcome unresolved", txt:"A DigestEase batch is under investigation for an out-of-specification dissolution result. Expect roughly a quarter of next cycle's output to be held pending disposition. Held stock is not lost, but it is not shippable in the period."}],
+
+  10:[{src:"Category", tone:"cold", v:"syndicated scanner data · verified", txt:"Sleep-aid consumption is decelerating sharply as the season closes. Retail weeks of supply across the portfolio are running heavy and buyers have begun destocking."},
+      {src:"Commercial — APAC", tone:"flat", v:"shipment history · verified", txt:"DigestEase distribution build is complete. The APAC base is now materially higher than it was at the start of the year."}],
+
+  11:[{src:"Trade — Global", tone:"hot", v:"account guidance · verbal", txt:"Key accounts across all three regions are signalling year-end loading. December order intake will run well ahead of consumption as buyers pull stock into the current fiscal period. This reverses in January."},
+      {src:"Finance", tone:"flat", v:"plan document · verified", txt:"Year-end inventory position is reported to the board. Both stockouts and excess cover are visible in the close. So is the full-year freight accrual."}],
+
+  12:[{src:"Commercial", tone:"flat", v:"plan calendar · verified", txt:"Final cycle of the plan year. Anything built now lands after the close — unless you fly it."}]
+};
+
+/* ---------- demand ---------- */
+function consumption(r,p,m){
+  var base = BASE[p][m]*SEASON[p][sIdx(r)]*eventMult(r,p,m);
+  var vol=0; for(var i=0;i<PRODUCTS.length;i++) if(PRODUCTS[i].id===p) vol=PRODUCTS[i].vol;
+  return Math.max(0, Math.round(base*(1+(rnd(r,p,m)-0.5)*2*vol)));
+}
+function tradeTarget(r,p,m){
+  var w = TRADE_WOS;
+  if(!MODE.trade) return w;
+  if(r===6 && p==="sleep" && m==="saeu") w += 1.2;
+  if(r===7 && p==="sleep" && m==="saeu") w += 2.5;
+  if(r===8 && p==="sleep" && m==="saeu") w -= 2.0;
+  if(r===9 && p==="sleep" && m==="saeu") w -= 1.0;
+  if(r===11 && p==="sleep")              w -= 1.5;
+  if(r===2  && p==="pain" && m==="na")   w += 1.0;
+  if(r===12)                             w += 0.8;
+  return Math.max(1.5, w);
+}
+function sellIn(r,p,m,tradeNow){
+  var c = consumption(r,p,m);
+  var want = c * tradeTarget(r,p,m)/4.33;
+  return { c:c, d:Math.max(0, Math.round(c + want - tradeNow)) };
+}
+
+function statBaseline(r,p,m,history){
+  var naive = BASE[p][m]*SEASON[p][sIdx(r)];
+  if(!history.length) return Math.round(naive);
+  var last = history.slice(-3), sum=0, n=0;
+  last.forEach(function(h){
+    var exp = BASE[p][m]*SEASON[p][sIdx(h.round)];
+    if(exp>0){ sum += h.demand[p][m]/exp; n++; }
+  });
+  var drift = n ? (0.55 + 0.45*(sum/n)) : 1;
+  return Math.round(naive*drift);
+}
+
+/* ---------- helpers ---------- */
+function zeroPM(v){ v=v||0; var o={}; PRODUCTS.forEach(function(p){o[p.id]={};MARKETS.forEach(function(m){o[p.id][m.id]=v;});}); return o; }
+function clone(x){ return JSON.parse(JSON.stringify(x)); }
+function fmt(n){ return Math.round(n).toLocaleString(); }
+function money(n){ return Math.abs(n)>=1000 ? "$"+(n/1000).toFixed(2)+"M" : "$"+Math.round(n)+"K"; }
+function pct(n){ return (n*100).toFixed(1)+"%"; }
+function signed(n){ return (n>=0?"+":"−")+Math.abs(n).toFixed(1)+"%"; }
+function P(id){ for(var i=0;i<PRODUCTS.length;i++) if(PRODUCTS[i].id===id) return PRODUCTS[i]; }
+function M(id){ for(var i=0;i<MARKETS.length;i++) if(MARKETS[i].id===id) return MARKETS[i]; }
+function cl01(x){ return Math.max(0,Math.min(1,x)); }
+function avgWOS(wos){
+  var s=0,n=0; PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ s+=wos[p.id][m.id]; n++; }); });
+  return n?s/n:0;
+}
+/* Vos remembers how many times she has raised a subject, so a recurring problem
+   escalates instead of looping the same sentence. Each call advances the topic. */
+/* deterministic rotation for lines that recur without escalating */
+function pick(set,r){ return set[((r%set.length)+set.length)%set.length]; }
+function said(st,key,set){
+  st.said=st.said||{};
+  var i=st.said[key]||0;
+  if(i>=set.length) return null;   /* she has said her piece — let something else speak */
+  st.said[key]=i+1;
+  return set[i];
+}
+/* mean forecast bias over the last n closed cycles — how Vos notices a pattern
+   rather than a month. Returns null until there are n cycles to read.        */
+function recentBias(st,n){
+  var real=st.history.filter(function(x){return !x.prior;});
+  if(real.length<n) return null;
+  var last=real.slice(-n), s=0;
+  last.forEach(function(h){ s+=(h.bias||0); });
+  return s/n;
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+/* ---------- state ---------- */
+var S;
+function initialState(){
+  var inv = zeroPM();
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    inv[p.id][m.id] = Math.round(BASE[p.id][m.id]*SEASON[p.id][0]*1.35);
+  });});
+  var pipeline=[];
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    for(var k=1;k<=m.lt;k++) pipeline.push({arrive:k,p:p.id,m:m.id,q:Math.round(BASE[p.id][m.id]*SEASON[p.id][0]*0.9),lt:m.lt,mode:"sea"});
+  });});
+  var trade=zeroPM();
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    trade[p.id][m.id] = Math.round(consumption(1,p.id,m.id)*TRADE_WOS/4.33);
+  });});
+  var hist=[];
+  [-2,-1,0].forEach(function(pr){
+    var dem=zeroPM(), off=zeroPM(), wos=zeroPM(), dT=0;
+    PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+      var si=sellIn(pr,p.id,m.id,trade[p.id][m.id]);
+      dem[p.id][m.id]=si.d; off[p.id][m.id]=si.c;
+      wos[p.id][m.id]=si.c>0 ? trade[p.id][m.id]/(si.c/4.33) : 0;
+      dT+=si.d;
+    });});
+    hist.push({round:pr,month:MONTHS[sIdx(pr)],demand:dem,consumption:off,wos:wos,dTot:dT,prior:true});
+  });
+  var air={}; PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ air[p.id+"|"+m.id]={u:0,tier:"air"}; });});
+  return {
+    round:1, inv:inv, trade:trade, pipeline:pipeline, history:hist, hz:zeroPM(0),
+    split:{pain:{na:58,saeu:27,apac:15},sleep:{na:58,saeu:27,apac:15},gut:{na:58,saeu:27,apac:15}},
+    done:false, fired:false, firedRound:0, introDismissed:false,
+    t0:Date.now(), totalMs:0, cycleMs:[], started:false, locking:false,
+    notesHidden:false, drill:null,
+    trust:TRUST_START, trustHist:[TRUST_START], bossLine:null, warned:false, said:{},
+    reviewsShown:{}, prevPipe:[],
+    flags:{usedAuto:false, buzzer:0, otMonths:0, otStreak:0, otStreakMax:0, airMonths:0, chtrMonths:0,
+           sawItComing:false, keptFaith:false, flewNever:true, savedByAir:0},
+    forecast:null, prod:{pain:0,sleep:0,gut:0}, air:air,
+    policy:{pain:"fair",sleep:"fair",gut:"fair"}, ss:MODE.ss0,
+    cum:{demand:0,shipped:0,rev:0,cogs:0,carry:0,waste:0,absErr:0,err:0,potRev:0,potCogs:0,potFreight:0,
+         dohSum:0,dohN:0,otCost:0,lostGM:0,seaCost:0,airCost:0,airUnits:0,chtrUnits:0}
+  };
+}
+
+/* ---------- engine ---------- */
+function runCycle(){
+  var st=S, r=st.round, inv=clone(st.inv), forecast=st.forecast, prod=st.prod, policy=st.policy, ss=st.ss;
+
+  st.prevPipe = st.pipeline.map(function(x){ return {arrive:x.arrive,p:x.p,m:x.m,q:x.q,lt:x.lt,mode:x.mode}; });
+
+  st.pipeline.filter(function(x){return x.arrive===r;}).forEach(function(x){ inv[x.p][x.m]+=x.q; });
+  var pipeline = st.pipeline.filter(function(x){return x.arrive>r;});
+
+  var alloc = allocate(r, prod, forecast, ss, policy, inv, pipeline, st.history, st.hz, st.split);
+  var heldUnits = alloc.held;
+
+  /* ---- freight: split each lot into ocean / air / charter ---- */
+  var seaCost=0, airCost=0, airUnits=0, chtrUnits=0, airLanes=[];
+  alloc.lots.forEach(function(x){
+    var key=x.p+"|"+x.m, a=st.air[key]||{u:0,tier:"air"};
+    var lt=leadTime(r,x.m);
+    var flyU=Math.max(0,Math.min(a.u||0, x.q));
+    var seaU=x.q-flyU;
+    if(seaU>0) pipeline.push({arrive:r+lt,p:x.p,m:x.m,q:seaU,lt:lt,mode:"sea"});
+    if(flyU>0){
+      if(a.tier==="chtr"){
+        inv[x.p][x.m]+=flyU;                       /* lands inside the cycle */
+        airCost += freightCost(flyU,x.m,"chtr"); chtrUnits+=flyU;
+      } else {
+        pipeline.push({arrive:r+1,p:x.p,m:x.m,q:flyU,lt:1,mode:"air"});
+        airCost += freightCost(flyU,x.m,"air");
+      }
+      airUnits+=flyU; airLanes.push({p:x.p,m:x.m,q:flyU,tier:a.tier});
+    }
+    seaCost += freightCost(seaU,x.m,"sea");
+  });
+
+  var lostGM=0;
+  var demand=zeroPM(), shipped=zeroPM(), offt=zeroPM(), wos=zeroPM(), lostBy={}, rev=0, cogs=0,
+      dTot=0, sTot=0, absErr=0, err=0, potRev=0, potCogs=0, potFreight=0;
+  MARKETS.forEach(function(m){ lostBy[m.id]=0; });
+  var trade=clone(st.trade);
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    var si=sellIn(r,p.id,m.id,trade[p.id][m.id]);
+    var d=si.d, s=Math.min(inv[p.id][m.id],d);
+    demand[p.id][m.id]=d; shipped[p.id][m.id]=s; offt[p.id][m.id]=si.c; inv[p.id][m.id]-=s;
+    lostBy[m.id]+=(d-s); lostGM += (d-s)*(p.price*m.mult - p.cogs - FREIGHT[m.id]);
+    trade[p.id][m.id]=Math.max(0, trade[p.id][m.id]+s-si.c);
+    wos[p.id][m.id]= si.c>0 ? trade[p.id][m.id]/(si.c/4.33) : 0;
+    rev += s*p.price*m.mult;
+    potRev += d*p.price*m.mult; potCogs += d*p.cogs; potFreight += d*FREIGHT[m.id];
+    dTot+=d; sTot+=s;
+    var f=forecast[p.id][m.id]; absErr+=Math.abs(f-d); err+=(f-d);
+  });});
+
+  var stdUsed=0, baseCogs=0;
+  PRODUCTS.forEach(function(p){ stdUsed+=prod[p.id]*p.cap; baseCogs+=prod[p.id]*p.cogs; });
+  var baseCap=capacityFor(r), otUnits=Math.max(0,stdUsed-baseCap);
+  var avgCogsPerStd = stdUsed>0 ? baseCogs/stdUsed : 0;
+  var otPrem = otPremiumFor(st.flags.otStreak);
+  var otCost = otPrem*avgCogsPerStd*otUnits;
+  cogs = baseCogs + otCost + heldUnits*P("gut").cogs*0.5;
+
+  var waste=0;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    var ceiling=demand[p.id][m.id]*6;
+    if(inv[p.id][m.id]>ceiling){
+      var w=Math.round((inv[p.id][m.id]-ceiling)*0.08);
+      inv[p.id][m.id]-=w; waste+=w*p.cogs;
+    }
+  });});
+
+  var invVal=0, invUnits=0;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ invVal+=inv[p.id][m.id]*p.cogs; invUnits+=inv[p.id][m.id]; });});
+  pipeline.forEach(function(x){ invUnits+=x.q; invVal+=x.q*P(x.p).cogs; });
+  var carry=invVal*CARRY_MO;
+  var doh = dTot>0 ? invUnits/(dTot/30) : 0;
+  var freight = seaCost+airCost;
+  var gm = rev-cogs-carry-waste-freight;
+  var potGM = Math.max(1, potRev-potCogs-potFreight);
+
+  var row={
+    round:r, month:MONTHS[r-1], demand:demand, shipped:shipped, consumption:offt, wos:wos, lostBy:lostBy,
+    cfr: dTot>0?sTot/dTot:1, doh:doh, gm:gm, rev:rev, cogs:cogs, carry:carry, waste:waste,
+    dTot:dTot, sTot:sTot, invUnits:invUnits, heldUnits:heldUnits, otUnits:otUnits, otCost:otCost,
+    otPrem:otPrem, otStreak:st.flags.otStreak, bias:(dTot>0?err/dTot:0), avgWos:avgWOS(wos),
+    lostGM:lostGM, capUsed:stdUsed, cap:baseCap,
+    seaCost:seaCost, airCost:airCost, freight:freight, airUnits:airUnits, chtrUnits:chtrUnits,
+    airLanes:airLanes, potGM:potGM
+  };
+  st.history.push(row);
+
+  var c=st.cum;
+  c.demand+=dTot; c.shipped+=sTot; c.rev+=rev; c.cogs+=cogs; c.carry+=carry; c.waste+=waste;
+  c.absErr+=absErr; c.err+=err; c.potRev+=potRev; c.potCogs+=potCogs; c.potFreight+=potFreight;
+  c.dohSum+=doh; c.dohN+=1; c.otCost+=otCost; c.lostGM+=lostGM;
+  c.seaCost+=seaCost; c.airCost+=airCost; c.airUnits+=airUnits; c.chtrUnits+=chtrUnits;
+
+  if(otUnits>0){ st.flags.otMonths++; st.flags.otStreak++; if(st.flags.otStreak>st.flags.otStreakMax) st.flags.otStreakMax=st.flags.otStreak; }
+  else st.flags.otStreak=0;
+  if(airUnits>0){ st.flags.airMonths++; st.flags.flewNever=false; }
+  if(chtrUnits>0) st.flags.chtrMonths++;
+  if(airUnits>0 && row.cfr>=0.97) st.flags.savedByAir++;
+  if(r<=3){
+    var apacGut=alloc.lots.filter(function(x){return x.p==="gut"&&x.m==="apac";}).reduce(function(a,b){return a+b.q;},0);
+    if(apacGut > BASE.gut.apac*1.2) st.flags.sawItComing=true;
+  }
+  if(r===7){
+    var f7=forecast.sleep.saeu, bl=statBaseline(7,"sleep","saeu",st.history);
+    if(bl>0 && f7/bl < 1.18) st.flags.keptFaith=true;
+  }
+  row.callout = callout(row, st);
+
+  /* ---- trust: recent-weighted, floored through the Q1 grace period ---- */
+  var g = trustGrade(row);
+  row.grade = g;
+  var prevTrust = st.trust;
+  st.trust = st.trust*0.60 + g*0.40;
+  if(r<=GRACE_ROUNDS) st.trust = Math.max(st.trust, 30);
+  st.trust = Math.max(0, Math.min(100, st.trust));
+  st.trustHist.push(st.trust);
+  row.trust = st.trust; row.trustDelta = st.trust-prevTrust;
+  st.bossLine = bossLine(row, st, st.trust-prevTrust);
+  if(st.trust < TRUST_WARN && r>=GRACE_ROUNDS) st.warned = true;
+
+  st.inv=inv; st.trade=trade; st.pipeline=pipeline; st.round=r+1;
+
+  if(r>GRACE_ROUNDS && st.trust < TRUST_FIRE){ st.fired=true; st.firedRound=r; }
+  st.done=(r>=(MODE.cycles||12));
+
+  st.forecast=null; st.prod={pain:0,sleep:0,gut:0};
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ st.air[p.id+"|"+m.id]={u:0,tier:"air"}; });});
+}
+
+/* how Vos reads a single cycle. Freight discipline is only 10 points here —
+   she does not comment on it in-cycle; that conversation happens at review. */
+function trustGrade(h){
+  var cap = h.potGM>0 ? h.gm/h.potGM : 1;
+  var burn = (h.otCost+h.airCost)/(h.rev||1);
+  /* Past 3% of revenue, overtime and air stop merely scoring zero and start
+     costing you. Without this the caps bound total burn low enough that no
+     amount of rescue spending can ever get you managed out — which would make
+     the escape valve free, and it is not supposed to be. */
+  var penalty = Math.min(30, Math.max(0, burn-0.030)*1100);
+  return cl01((h.cfr-0.90)/0.09)*38
+       + cl01((cap-0.80)/0.16)*28
+       + cl01(1-Math.abs(h.doh-75)/55)*16
+       + cl01(1-burn/0.030)*18
+       - penalty;
+}
+function trustBand(t){
+  if(t>=80) return {k:"backing",  label:"Backing you",     c:"var(--green)"};
+  if(t>=62) return {k:"confident",label:"Confident",       c:"var(--green)"};
+  if(t>=45) return {k:"watching", label:"Watching",        c:"var(--supply)"};
+  if(t>=TRUST_WARN) return {k:"concerned",label:"Concerned",c:"var(--amber)"};
+  if(t>=TRUST_FIRE) return {k:"warning",  label:"Formal warning",c:"var(--red)"};
+  return {k:"terminal", label:"Out of patience", c:"var(--red)"};
+}
+
+/* Vos speaks once per closed cycle. Never about freight — that is a review
+   conversation. First match wins, so put the specific lines first.          */
+function bossLine(h, st, delta){
+  var r=h.round, b=trustBand(st.trust);
+  var apacD=0, apacS=0;
+  PRODUCTS.forEach(function(p){ apacD+=h.demand[p.id].apac; apacS+=h.shipped[p.id].apac; });
+  var apacFill = apacD>0 ? apacS/apacD : 1;
+
+  if(st.trust<TRUST_FIRE && r<=GRACE_ROUNDS)
+    return "You are three months in and this is already the worst start I have seen. You have until the end of the quarter. After that I stop being patient.";
+  if(r===GRACE_ROUNDS && st.trust<TRUST_WARN)
+    return "Q1 is closed. That was the free part. From here a quarter like that one ends differently.";
+  if(r===2 && h.cfr>=0.98)
+    return "The recall gap opened and we were on the shelf. That is the entire job, done once.";
+  if(r===2 && h.cfr<0.94)
+    return "A competitor handed us fourteen points of share and we could not ship into it. I want to understand how.";
+  if(r===6 && apacFill>=0.99)
+    return "The APAC listings went live and the stock was there. You committed that in March. I noticed.";
+  if(r===6 && apacFill<0.90)
+    return "Two thousand four hundred pharmacies, empty shelves. That was decided three months ago and I cannot unwind it now.";
+  if(r===7 && st.flags.keptFaith)
+    return "Sales called forty percent. You planned to the scanner data. Hold that line when they escalate.";
+  if(r===7 && !st.flags.keptFaith && h.doh>95)
+    return "We built to a promotion nobody has funded. Look at the cover we are carrying.";
+  if(r===11 && h.doh>100)
+    return "December's order book is not demand and you know it. We are carrying the trade's inventory now.";
+
+  /* ---- symptoms, not metrics ----
+     She never says "your MAPE is 37%". She says what a real SVP would actually
+     see: a plant that never cools down, a warehouse doing the forecast's job,
+     and accounts sitting on stock they have not sold.                        */
+  var rb=recentBias(st,3), streak=st.flags.otStreak;
+  var since=MONTHS[Math.max(0,Math.min(11,r-streak))];
+  /* escalates rather than repeating — she has said this before and remembers */
+  if(streak>=8){
+    /* she has said this before and does not repeat herself — it hardens */
+    var L8=said(st,"otTerminal",[
+      "The line has not been cold since "+since+". This is the third time I have put it in front of you and I am not going to do it a fourth.",
+      "Still hot. I have stopped asking and started writing it down.",
+      "Maintenance came to me directly this month, which means they gave up on going through you. That is where we are.",
+      "I have run out of ways to say this, so I will stop saying it."
+    ]);
+    if(L8) return L8;
+  }
+  if(streak>=6 && h.carry>h.gm*0.09)
+    return "Six months hot, and "+money(h.carry)+" a month to warehouse what it made. I have raised this with you once already. Cool the line.";
+  if(streak>=6)
+    return "Half a year without letting the plant cool down. You are paying nearly double the premium you paid in "+since+", and it is the streak itself that did that to you.";
+  if(streak>=5 && h.carry>h.gm*0.09)
+    return "That is "+streak+" straight months of overtime, and we are carrying "+money(h.carry)+" a month to hold the stock it produced. One of those is paying for the other and I am funding both.";
+  if(streak>=4)
+    return streak+" months of overtime in a row. That stopped being a response to anything around month two — it is just how we run the plant now.";
+  if(h.doh>92 && h.otUnits>0)
+    return "We are paying a premium to run the line hot into a warehouse that is already full. Walk me through that, because I cannot make it work.";
+  if(rb!==null && rb>0.11){ var LH=said(st,"biasHigh",[
+      "Every month you hand me a number and every month it lands under it. I have stopped planning to your forecast and started planning to your forecast minus ten percent.",
+      "Again. The consensus said one thing, the accounts ordered another, and the difference is sitting in a warehouse we pay rent on.",
+      "I do not need you optimistic. I need you right. Those have not been the same thing for a quarter now.",
+      "Your forecast has become a wish with a number attached. Bring me the scanner data and leave the ambition at home."
+    ]); if(LH) return LH; }
+  if(rb!==null && rb<-0.11){ var LL=said(st,"biasLow",[
+      "Three months running you have been surprised by demand that was already sitting in the data when you committed. I need you reading it, not reacting to it.",
+      "Low again. Caution is invisible right up until a lane you starved cannot recover, and then it is the only thing anyone can see.",
+      "Every month you leave room you did not need to leave, and every month somebody downstream pays for the gap."
+    ]); if(LL) return LL; }
+  if(h.avgWos>TRADE_WOS+1.7){ var LW=said(st,"wosHeavy",[
+      "Our accounts are sitting on "+h.avgWos.toFixed(1)+" weeks of our stock. That is not demand — that is a loan we made them, and they will stop reordering until it runs down.",
+      "The trade is still fat. When that unwinds the orders stop, and I do not want to hear it described as a demand collapse.",
+      "You are shipping into inventory that is already on their shelves. We are both going to watch that reverse."
+    ]); if(LW) return LW; }
+  if(h.cfr<0.90)
+    return pick([
+      "We missed "+fmt(h.dTot-h.sTot)+"K units of orders we had already sold. Accounts do not forget a month like this.",
+      "Another "+fmt(h.dTot-h.sTot)+"K short. I am running out of accounts who will take the call from me instead of from procurement.",
+      "We sold "+fmt(h.dTot)+"K and shipped "+fmt(h.sTot)+"K. I do not need the reason today. I need it to stop.",
+      fmt(h.dTot-h.sTot)+"K unshipped. At some point this stops being a supply problem and starts being a credibility one."
+    ], r);
+  if(h.doh>105)
+    return "Finance flagged the cover. " + h.doh.toFixed(0) + " days is not a strategy, it is a warehouse.";
+  if(h.doh<40)
+    return "You are running this on fumes — " + h.doh.toFixed(0) + " days. One shock on a long lane and we are gone.";
+  if(h.otUnits>0 && h.gm/h.potGM < 0.82)
+    return "We saved the month and paid for the privilege. Overtime is a timing decision, not a policy.";
+  if(delta<=-8)
+    return "That is a step backwards. I want the next one to look different.";
+  if(b.k==="warning")
+    return "This is a formal conversation now. Fix it inside the quarter or I will fix it for you.";
+  if(b.k==="concerned")
+    return "You are outside the lines. Not fatally. Not yet.";
+  if(h.cfr>=0.995 && h.otUnits===0 && h.doh>=58 && h.doh<=92)
+    return "Everything shipped, no overtime, cover in band. This is what the plan is supposed to look like.";
+  if(delta>=6)
+    return "Better. Keep it there and we can stop having these conversations.";
+  if(b.k==="backing")
+    return pick(["Nothing for me to do here. Good.",
+                 "Clean. I will go and find something else to worry about.",
+                 "This is what it looks like when the plan and the month agree."], r);
+  if(b.k==="confident")
+    return pick(["Acceptable. Not comfortable, but acceptable.",
+                 "Fine. Keep it boring.",
+                 "No surprises. I have learned to put a value on that."], r);
+  return pick(["Inside the lines. Barely.",
+               "It held. That is the most I will say about it.",
+               "Nothing broke. Next."], r);
+}
+
+/* Allocation tilts. Only bite when supply falls short of total need. */
+var TILT = {
+  fair:   { na:1.00, saeu:1.00, apac:1.00 },
+  long:   { na:0.75, saeu:1.10, apac:1.40 },
+  margin: { na:1.40, saeu:1.00, apac:0.65 }
+};
+
+function allocate(r, prod, forecast, ss, policy, inv, pipeline, history, hz, split){
+  hz = hz || zeroPM(0); history = history || []; split = split || zeroPM(34);
+  var lots=[], held=0;
+  PRODUCTS.forEach(function(p){
+    var avail = prod[p.id];
+    if(r===10 && p.id==="gut"){ held=Math.round(avail*0.25); avail-=held; }
+    var need={}, totalNeed=0;
+    MARKETS.forEach(function(m){
+      var inPipe = pipeline.filter(function(x){return x.p===p.id&&x.m===m.id;}).reduce(function(a,b){return a+b.q;},0);
+      var H = leadTime(r,m.id)+1+ss/4.33;
+      var ratio = 1;
+      var bl0 = statBaseline(r,p.id,m.id,history);
+      if(bl0>0) ratio = forecast[p.id][m.id]/bl0;
+      ratio = Math.max(0.4, Math.min(2.5, ratio));
+      var cover = 0;
+      for(var h=0; h<Math.ceil(H); h++){
+        var slice = Math.min(1, H-h);
+        var proj = (h===0) ? forecast[p.id][m.id]
+                           : statBaseline(r+h,p.id,m.id,history)*(1+(ratio-1)*(hz[p.id][m.id]||0));
+        cover += proj*slice;
+      }
+      need[m.id]=Math.max(0, cover-inv[p.id][m.id]-inPipe);
+      totalNeed+=need[m.id];
+    });
+    if(totalNeed<=0) totalNeed=1;
+    if(policy[p.id]==="manual"){
+      var sp=split[p.id], spTot=0;
+      MARKETS.forEach(function(m){ spTot += Math.max(0,sp[m.id]||0); });
+      if(spTot<=0) spTot=1;
+      MARKETS.forEach(function(m){
+        lots.push({p:p.id,m:m.id,q:Math.round(avail*(Math.max(0,sp[m.id]||0)/spTot))});
+      });
+      return;
+    }
+    var w = TILT[policy[p.id]] || TILT.fair;
+    var short = avail < totalNeed;
+    var eff={}, effTot=0;
+    MARKETS.forEach(function(m){ eff[m.id]=need[m.id]*(short?w[m.id]:1); effTot+=eff[m.id]; });
+    if(effTot<=0) effTot=1;
+    MARKETS.forEach(function(m){
+      lots.push({p:p.id,m:m.id,q:Math.round(avail*(eff[m.id]/effTot))});
+    });
+  });
+  return {lots:lots, held:held};
+}
+
+function callout(h, st){
+  var dd=0, ss2=0;
+  PRODUCTS.forEach(function(p){ dd+=h.demand[p.id].apac; ss2+=h.shipped[p.id].apac; });
+  var apacFill = dd>0 ? ss2/dd : 1;
+  if(h.round===7 && st.flags.keptFaith)
+    return "Didn't take the bait — Sales called 40%, you planned to the category read.";
+  if(h.round===6 && st.flags.sawItComing)
+    return "You saw it coming — the APAC listing was covered before it landed.";
+  if(h.chtrUnits>0 && h.cfr>=0.99)
+    return "Chartered and cleared — you bought the month back at ten times the rate.";
+  if(h.cfr>=0.999 && h.otUnits===0 && h.airUnits===0 && h.doh>=55 && h.doh<=95)
+    return "Textbook cycle — everything shipped, no overtime, nothing flown, inventory in band.";
+  if(apacFill>=0.999 && h.round>=4 && h.airUnits===0)
+    return "Clean lane — 100% fill in APAC by sea, committed three months blind.";
+  if(h.otUnits===0 && h.capUsed>h.cap*0.94 && h.cfr>=0.97)
+    return "Held the line — capacity at the limit and you shipped it without overtime.";
+  if(h.round>=8 && h.cfr>=0.985 && h.lostGM<150)
+    return "Nothing left on the table this cycle.";
+  return null;
+}
+
+/* ---------- scoring ---------- */
+function scorecard(c){
+  var cfr = c.demand ? c.shipped/c.demand : 0;
+  var mape = c.demand ? c.absErr/c.demand : 1;
+  var bias = c.demand ? c.err/c.demand : 0;
+  var gm = c.rev-c.cogs-c.carry-c.waste-c.seaCost-c.airCost;
+  var potGM = (c.potRev-c.potCogs-c.potFreight)||1;
+  var capture = gm/potGM;
+  var doh = c.dohN ? c.dohSum/c.dohN : 0;
+  var sFill=cl01((cfr-0.88)/0.10)*30, sCap=cl01((capture-0.80)/0.16)*25,
+      sInv=cl01(1-Math.abs(doh-75)/50)*20, sAcc=cl01((0.32-mape)/0.18)*15,
+      sBias=cl01(1-Math.abs(bias)/0.12)*10;
+  var total=sFill+sCap+sInv+sAcc+sBias;
+
+  var arch = {name:"The Operator", line:"Balanced across service, cost and cover. Nothing dramatic, which is the point."};
+  if(c.airCost > c.rev*0.018 && c.chtrUnits>0)
+                                      arch={name:"The Aviator",     line:"When the lane was too long, you flew over it. Every month. The freight accrual tells the whole story."};
+  else if(doh>95)                     arch={name:"The Hoarder",     line:"Nobody ever went short. Finance noticed."};
+  else if(doh<50 && cfr<0.95)         arch={name:"The Miser",       line:"Lean to the point of brittle. One shock and the lane was gone."};
+  else if(c.otCost+c.airCost>c.lostGM*1.4 && capture<0.90)
+                                      arch={name:"The Firefighter", line:"Always saved it. Never cheaply. Overtime and air became the plan, not the exception."};
+  else if(bias>0.08)                  arch={name:"The Optimist",    line:"Forecast high all year. The carrying cost arrived monthly."};
+  else if(bias<-0.08)                 arch={name:"The Sceptic",     line:"Forecast low all year. Invisible until a lane you starved could not recover."};
+  else if(mape>0.28)                  arch={name:"The Believer",    line:"Chased the loud signal. The trade moved its own stock and you followed it."};
+  else if(cfr>=0.97 && capture>=0.93 && Math.abs(doh-75)<=15)
+                                      arch={name:"The Metronome",   line:"Service, margin and cover all in band for twelve straight cycles. Rare."};
+  else if(cfr>=0.97 && capture<0.88)  arch={name:"The Servant",     line:"The customer never felt it. The P&L did."};
+  else if(capture>=0.94 && cfr<0.93)  arch={name:"The Accountant",  line:"Protected every dollar of margin except the ones you never got to earn."};
+
+  var title="Demand Planner";
+  if(total>=45) title="Senior Demand Planner";
+  if(total>=60) title="Planning Manager";
+  if(total>=72) title="Senior Manager, IBP";
+  if(total>=84) title="Director of IBP";
+  if(total>=93) title="VP, Supply Chain";
+  return {cfr:cfr,mape:mape,bias:bias,gm:gm,capture:capture,doh:doh,lost:potGM-gm,total:total,title:title,arch:arch,
+          parts:{sFill:sFill,sCap:sCap,sInv:sInv,sAcc:sAcc,sBias:sBias}};
+}
+
+/* ---------- derived ---------- */
+function derived(){
+  var r=S.round, capBase=capacityFor(r), capMax=Math.round(capBase*(1+OT_CAP));
+  var pipe=zeroPM(0);
+  S.pipeline.forEach(function(x){ pipe[x.p][x.m]+=x.q; });
+  var capUsed=0; PRODUCTS.forEach(function(p){ capUsed+=S.prod[p.id]*p.cap; });
+  var rows={};
+  PRODUCTS.forEach(function(p){
+    var onHand=0, inPipe=0;
+    MARKETS.forEach(function(m){ onHand+=S.inv[p.id][m.id]; inPipe+=pipe[p.id][m.id]; });
+    var target=0;
+    MARKETS.forEach(function(m){
+      var H=leadTime(S.round,m.id)+1+S.ss/4.33, bl0=statBaseline(S.round,p.id,m.id,S.history), ratio=1;
+      if(bl0>0) ratio=Math.max(0.4,Math.min(2.5,(S.forecast[p.id][m.id]||0)/bl0));
+      for(var h=0;h<Math.ceil(H);h++){
+        var sl=Math.min(1,H-h);
+        target += ((h===0)?(S.forecast[p.id][m.id]||0)
+                 : statBaseline(S.round+h,p.id,m.id,S.history)*(1+(ratio-1)*(S.hz[p.id][m.id]||0)))*sl;
+      }
+    });
+    rows[p.id]={ need:Math.max(0,Math.round(target-onHand-inPipe)),
+                 supply:onHand+inPipe+S.prod[p.id], target:target||1, std:S.prod[p.id]*p.cap };
+  });
+  var lots = allocate(r, S.prod, S.forecast, S.ss, S.policy, S.inv, S.pipeline, S.history, S.hz, S.split).lots;
+  var planned={}; lots.forEach(function(x){ planned[x.p+"|"+x.m]=x.q; });
+  var airU=0, airSpend=0, seaSpend=0;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    var k=p.id+"|"+m.id, q=planned[k]||0, a=S.air[k]||{u:0,tier:"air"};
+    var fly=Math.max(0,Math.min(a.u||0,q));
+    airU+=fly; airSpend+=freightCost(fly,m.id,a.tier==="chtr"?"chtr":"air");
+    seaSpend+=freightCost(q-fly,m.id,"sea");
+  });});
+  return {capBase:capBase,capMax:capMax,capUsed:capUsed,pipe:pipe,rows:rows,planned:planned,
+          airU:airU,airSpend:airSpend,seaSpend:seaSpend,otPrem:otPremiumFor(S.flags.otStreak),
+          otStreak:S.flags.otStreak,
+          over:capUsed>capBase, blown:capUsed>capMax, airBlown:airU>AIR_POOL};
+}
+
+/* ============================================================
+   THE WALL MAP
+   ============================================================ */
+var LANE_X0=112, LANE_PX=168, WH_W=132;
+function laneEndX(lt){ return LANE_X0 + lt*LANE_PX; }
+
+function mapWidth(r){
+  var mx=0; MARKETS.forEach(function(m){ mx=Math.max(mx, leadTime(r,m.id)); });
+  return laneEndX(mx)+WH_W+28;
+}
+function laneY(i){ return 54 + i*92; }
+/* vessels stop just short of the warehouse so the two never overlap */
+function laneStopX(lt){ return laneEndX(lt)-18; }
+
+/* health of a region-brand position: months of cover on hand */
+function coverMonths(pid,mid){
+  var exp = statBaseline(S.round,pid,mid,S.history) || 1;
+  return S.inv[pid][mid]/exp;
+}
+function coverColor(c){
+  if(c<0.55) return "var(--red)";
+  if(c<1.00) return "var(--amber)";
+  if(c<=2.60) return "var(--green)";
+  return "var(--supply)";
+}
+
+function renderMap(){
+  var r=S.round, W=mapWidth(r), H=laneY(2)+64;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Supply network map">';
+
+  /* plant */
+  s+='<g><rect x="18" y="'+(laneY(0)-16)+'" width="76" height="'+(laneY(2)-laneY(0)+32)+'" rx="3" fill="#0B1620" stroke="var(--line)"/>';
+  s+='<text x="56" y="'+(laneY(1)-6)+'" text-anchor="middle" font-family="Archivo,sans-serif" font-size="11" font-weight="700" fill="var(--ink)">PLANT</text>';
+  s+='<text x="56" y="'+(laneY(1)+9)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="var(--dimmer)">'+MONTHS[r-1]+'</text>';
+  s+='</g>';
+
+  MARKETS.forEach(function(m,i){
+    var y=laneY(i), lt=leadTime(r,m.id), ex=laneEndX(lt);
+    /* lane track with one tick per month of transit */
+    s+='<line x1="'+LANE_X0+'" y1="'+y+'" x2="'+ex+'" y2="'+y+'" stroke="var(--line)" stroke-width="2"/>';
+    for(var k=1;k<=lt;k++){
+      var tx=LANE_X0+k*LANE_PX;
+      s+='<line x1="'+tx+'" y1="'+(y-6)+'" x2="'+tx+'" y2="'+(y+6)+'" stroke="var(--line)" stroke-width="1"/>';
+      var mn=r+k;
+      s+='<text x="'+tx+'" y="'+(y+34)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="var(--dimmer)">'+(mn<=12?MONTHS[mn-1]:"—")+'</text>';
+    }
+    /* air arc — the fast lane, drawn above the sea lane */
+    var ay=y-30;
+    s+='<path d="M '+(LANE_X0+4)+' '+(y-8)+' Q '+((LANE_X0+ex)/2)+' '+(ay-12)+' '+(ex-6)+' '+(y-8)+
+       '" fill="none" stroke="var(--air)" stroke-width="1" stroke-dasharray="3 5" opacity=".38"/>';
+    /* lane label */
+    s+='<text x="'+LANE_X0+'" y="'+(y-14)+'" font-family="IBM Plex Mono,monospace" font-size="9" letter-spacing="1" fill="var(--dimmer)">'+
+       m.short+' · '+lt+'MO SEA'+(r===7&&m.id==="apac"?' · CONGESTED':'')+'</text>';
+
+    /* warehouse box */
+    var wx=ex+10;
+    var regCover=0, regInv=0, regExp=0;
+    PRODUCTS.forEach(function(p){ regInv+=S.inv[p.id][m.id]; regExp+=(statBaseline(r,p.id,m.id,S.history)||1); });
+    regCover = regInv/(regExp||1);
+    var rc=coverColor(regCover);
+    s+='<g class="whbox" data-wh="'+m.id+'">';
+    s+='<rect class="whring" x="'+wx+'" y="'+(y-30)+'" width="'+WH_W+'" height="62" rx="3" fill="#0B1620" stroke="'+rc+'" stroke-opacity=".55"/>';
+    s+='<text x="'+(wx+8)+'" y="'+(y-17)+'" font-family="Archivo,sans-serif" font-size="10.5" font-weight="700" fill="var(--ink)">'+m.short+'</text>';
+    s+='<text x="'+(wx+WH_W-8)+'" y="'+(y-17)+'" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="'+rc+'">'+regCover.toFixed(1)+'mo</text>';
+    /* three brand silos */
+    PRODUCTS.forEach(function(p,j){
+      var bx=wx+9+j*((WH_W-22)/3), bw=(WH_W-22)/3-7;
+      var cov=coverMonths(p.id,m.id), hgt=Math.max(2,Math.min(1,cov/2.6)*26);
+      s+='<rect x="'+bx+'" y="'+(y-8)+'" width="'+bw+'" height="26" rx="1" fill="#131E2A" stroke="var(--line)" stroke-width=".7"/>';
+      s+='<rect x="'+bx+'" y="'+(y-8+26-hgt)+'" width="'+bw+'" height="'+hgt+'" rx="1" fill="'+coverColor(cov)+'" opacity=".72"/>';
+      s+='<text x="'+(bx+bw/2)+'" y="'+(y+27)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="7.5" fill="var(--dimmer)">'+p.name.slice(0,3).toUpperCase()+'</text>';
+    });
+    s+='</g>';
+  });
+
+  s+='<g id="vessels"></g><g id="airlayer"></g>';
+  s+='</svg>';
+  return s;
+}
+
+function vesselShape(mode,mid,q){
+  var g='';
+  if(mode==="air"||mode==="chtr"){
+    var col = mode==="chtr" ? "var(--charter)" : "var(--air)";
+    g+='<path d="M -13 0 L 3 -6 L 13 -6 L 7 0 L 13 6 L 3 6 Z" fill="'+col+'" opacity=".92"/>';
+    g+='<path d="M -3 -6 L 1 -13 L 4 -13 L 2 -6 Z" fill="'+col+'" opacity=".7"/>';
+  } else if(mid==="na"){
+    g+='<rect x="-13" y="-6" width="17" height="10" rx="1" fill="var(--supply)" opacity=".85"/>';
+    g+='<rect x="4" y="-3" width="8" height="7" rx="1" fill="var(--supply)" opacity=".6"/>';
+    g+='<circle cx="-7" cy="5" r="2.4" fill="var(--dim)"/><circle cx="8" cy="5" r="2.4" fill="var(--dim)"/>';
+  } else {
+    g+='<path d="M -14 2 L 14 2 L 10 8 L -10 8 Z" fill="var(--supply)" opacity=".85"/>';
+    g+='<rect x="-9" y="-5" width="6" height="7" fill="var(--supply)" opacity=".55"/>';
+    g+='<rect x="-2" y="-5" width="6" height="7" fill="var(--supply)" opacity=".75"/>';
+    g+='<rect x="5" y="-5" width="6" height="7" fill="var(--supply)" opacity=".55"/>';
+  }
+  g+='<text y="21" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="var(--dim)">'+fmt(q)+'K</text>';
+  return g;
+}
+
+/* in-transit stock, grouped so one lane does not stack nine icons */
+function drawVessels(animate){
+  var host=document.getElementById("vessels");
+  if(!host) return;
+  var r=S.round, groups={};
+  S.pipeline.forEach(function(x){
+    var k=x.m+"|"+x.arrive+"|"+(x.mode||"sea");
+    if(!groups[k]) groups[k]={m:x.m,arrive:x.arrive,mode:x.mode||"sea",lt:x.lt||leadTime(r,x.m),q:0};
+    groups[k].q+=x.q;
+  });
+  var s='';
+  Object.keys(groups).forEach(function(k){
+    var g=groups[k]; if(g.q<=0) return;
+    var i=0; MARKETS.forEach(function(m,j){ if(m.id===g.m) i=j; });
+    var y=laneY(i);
+    var lt=Math.max(1,g.lt);
+    var elapsed=r-(g.arrive-lt);
+    var prog=cl01(elapsed/lt), prev=cl01((elapsed-1)/lt);
+    var span=laneStopX(leadTime(r,g.m))-LANE_X0;
+    var x=LANE_X0+prog*span, px=LANE_X0+prev*span;
+    var yy = (g.mode==="air") ? y-30 : y;
+    s+='<g class="vessel" data-x="'+x+'" data-y="'+yy+'" transform="translate('+(animate?px:x)+','+yy+')">'+vesselShape(g.mode,g.m,g.q)+'</g>';
+  });
+  host.innerHTML=s;
+  if(animate){
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        var els=host.querySelectorAll(".vessel");
+        for(var i=0;i<els.length;i++){
+          els[i].setAttribute("transform","translate("+els[i].getAttribute("data-x")+","+els[i].getAttribute("data-y")+")");
+        }
+      });
+    });
+  }
+}
+
+/* what this cycle's plan will put on the water / in the air — live as you type */
+function drawAirLayer(d){
+  var host=document.getElementById("airlayer");
+  if(!host) return;
+  var r=S.round, s='';
+  var byLaneSea={}, byLaneAir={}, byLaneChtr={};
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    var k=p.id+"|"+m.id, q=d.planned[k]||0, a=S.air[k]||{u:0,tier:"air"};
+    var fly=Math.max(0,Math.min(a.u||0,q));
+    byLaneSea[m.id]=(byLaneSea[m.id]||0)+(q-fly);
+    if(a.tier==="chtr") byLaneChtr[m.id]=(byLaneChtr[m.id]||0)+fly;
+    else byLaneAir[m.id]=(byLaneAir[m.id]||0)+fly;
+  });});
+  MARKETS.forEach(function(m,i){
+    var y=laneY(i), x=LANE_X0+16;
+    if(byLaneSea[m.id]>0.5)
+      s+='<g opacity=".42" transform="translate('+x+','+y+')">'+vesselShape("sea",m.id,byLaneSea[m.id])+'</g>';
+    if(byLaneAir[m.id]>0.5)
+      s+='<g transform="translate('+(x+30)+','+(y-30)+')">'+vesselShape("air",m.id,byLaneAir[m.id])+'</g>';
+    if(byLaneChtr[m.id]>0.5){
+      var cx=laneStopX(leadTime(r,m.id));
+      s+='<g transform="translate('+cx+','+(y-30)+')">'+vesselShape("chtr",m.id,byLaneChtr[m.id])+'</g>';
+      s+='<text x="'+cx+'" y="'+(y-46)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="var(--charter)">LANDS NOW</text>';
+    }
+  });
+  host.innerHTML=s;
+}
+
+/* ---------- capacity dial ---------- */
+function dialSVG(){
+  return '<svg viewBox="0 0 170 108" role="img" aria-label="Plant capacity">'+
+    '<path id="dialtrackA" d="M 18 92 A 67 67 0 0 1 152 92" fill="none" stroke="var(--panel2)" stroke-width="13" stroke-linecap="round"/>'+
+    '<path id="dialgreen" d="" fill="none" stroke="var(--supply)" stroke-width="13" opacity=".30"/>'+
+    '<path id="dialamber" d="" fill="none" stroke="var(--amber)" stroke-width="13" opacity=".28"/>'+
+    '<path id="dialval"   d="" fill="none" stroke="var(--supply)" stroke-width="13" stroke-linecap="round"/>'+
+    '<line id="dialneedle" x1="85" y1="92" x2="85" y2="34" stroke="var(--ink)" stroke-width="2"/>'+
+    '<circle cx="85" cy="92" r="5" fill="var(--ink)"/>'+
+    '<text id="dialtxt" x="85" y="72" text-anchor="middle" font-family="Archivo,sans-serif" font-size="17" font-weight="800" fill="var(--ink)">0</text>'+
+    '<text x="85" y="86" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="var(--dimmer)">STD UNITS</text>'+
+    '</svg>';
+}
+function arcPath(f0,f1){
+  var a0=Math.PI*(1-cl01(f0)), a1=Math.PI*(1-cl01(f1));
+  var R=67, cx=85, cy=92;
+  var x0=cx+R*Math.cos(a0), y0=cy-R*Math.sin(a0);
+  var x1=cx+R*Math.cos(a1), y1=cy-R*Math.sin(a1);
+  var large=(a0-a1)>Math.PI?1:0;
+  return "M "+x0.toFixed(1)+" "+y0.toFixed(1)+" A "+R+" "+R+" 0 "+large+" 1 "+x1.toFixed(1)+" "+y1.toFixed(1);
+}
+function updateDial(d){
+  var g=document.getElementById("dialgreen"); if(!g) return;
+  var fBase=d.capBase/d.capMax;
+  g.setAttribute("d",arcPath(0,fBase));
+  document.getElementById("dialamber").setAttribute("d",arcPath(fBase,1));
+  var f=cl01(d.capUsed/d.capMax);
+  document.getElementById("dialval").setAttribute("d", f>0.004?arcPath(0,f):"");
+  document.getElementById("dialval").setAttribute("stroke", d.blown?"var(--red)":(d.over?"var(--amber)":"var(--supply)"));
+  var ang=Math.PI*(1-f), R=58;
+  var nd=document.getElementById("dialneedle");
+  nd.setAttribute("x2",(85+R*Math.cos(ang)).toFixed(1));
+  nd.setAttribute("y2",(92-R*Math.sin(ang)).toFixed(1));
+  nd.setAttribute("stroke", d.blown?"var(--red)":"var(--ink)");
+  document.getElementById("dialtxt").textContent=fmt(d.capUsed);
+}
+
+function refresh(){
+  var d=derived();
+  if(!document.getElementById("commit")) return;
+
+  updateDial(d);
+  drawAirLayer(d);
+
+  document.getElementById("capnote").textContent = fmt(d.capUsed)+" / "+fmt(d.capBase)+" standard"+(S.round===5?" · maintenance":"");
+  var st=document.getElementById("capstat");
+  st.textContent = d.blown ? "OVER CEILING — reduce the plan"
+    : (d.over ? "Overtime engaged · +"+Math.round(d.otPrem*100)+"% COGS on the excess"
+              + (d.otStreak>0 ? " · "+d.otStreak+" month"+(d.otStreak>1?"s":"")+" running" : "")
+              : (d.otStreak>0 ? "Within standard capacity · line cools, premium resets" : "Within standard capacity"));
+  st.className = (d.blown?"bad":(d.over?(d.otStreak>=3?"bad":"warn"):"dim"))+" sub";
+
+  var totalNeed=0, totalPlan=0;
+  PRODUCTS.forEach(function(p){ totalNeed+=d.rows[p.id].need; totalPlan+=S.prod[p.id]; });
+  var covPct = totalNeed>0 ? totalPlan/totalNeed : 1;
+  var uw=document.getElementById("underwarn");
+  if(uw){
+    if(totalNeed>0 && covPct<0.85){
+      uw.style.display="flex"; uw.className="sig hot";
+      uw.innerHTML='<span class="tag">Under-built</span><span><strong>Your build plan is '+
+        Math.round(covPct*100)+'% of cover need.</strong> At this rate you run short within two to three cycles, and an APAC correction takes three months to land by sea. '+
+        (d.capUsed<d.capBase*0.9?'You still have standard capacity available.':'You are near the capacity limit — overtime is available.')+'</span>';
+    } else { uw.style.display="none"; }
+  }
+
+  PRODUCTS.forEach(function(p){
+    var row=d.rows[p.id];
+    document.getElementById("need-"+p.id).textContent=fmt(row.need);
+    document.getElementById("std-"+p.id).textContent=fmt(row.std);
+    var scale=Math.max(row.supply,row.target)*1.12;
+    document.getElementById("sup-"+p.id).style.width=Math.min(100,(row.supply/scale)*100)+"%";
+    document.getElementById("mk-"+p.id).style.left=Math.min(99,(row.target/scale)*100)+"%";
+    var lbl=document.getElementById("lbl-"+p.id);
+    var gap=row.supply-row.target;
+    lbl.textContent=(gap>=0?"+":"−")+fmt(Math.abs(gap));
+    lbl.style.color = gap>=0?"var(--supply)":"var(--demand)";
+  });
+
+  /* ---- freight desk ---- */
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    var k=p.id+"|"+m.id, q=d.planned[k]||0, a=S.air[k]||{u:0,tier:"air"};
+    var fly=Math.max(0,Math.min(a.u||0,q));
+    var pl=document.getElementById("fplan-"+p.id+"-"+m.id);
+    if(pl) pl.textContent=fmt(q);
+    var inp=document.getElementById("fair-"+p.id+"-"+m.id);
+    if(inp) inp.max=q;
+    var ct=document.getElementById("fcost-"+p.id+"-"+m.id);
+    if(ct){
+      if(fly<=0){ ct.textContent="—"; ct.className="dim"; }
+      else {
+        var c=freightCost(fly,m.id,a.tier==="chtr"?"chtr":"air");
+        ct.textContent=money(c); ct.className=a.tier==="chtr"?"bad":"warn";
+      }
+    }
+    var et=document.getElementById("feta-"+p.id+"-"+m.id);
+    if(et){
+      if(fly<=0){ var am=S.round+leadTime(S.round,m.id); et.textContent=am<=12?MONTHS[am-1]:"after close"; et.className="dim"; }
+      else if(a.tier==="chtr"){ et.textContent=MONTHS[S.round-1]+" · now"; et.className="bad"; }
+      else { var am2=S.round+1; et.textContent=(am2<=12?MONTHS[am2-1]:"after close"); et.className="warn"; }
+    }
+  });});
+  var ap=document.getElementById("airfill");
+  if(ap){
+    ap.style.width=Math.min(100,(d.airU/AIR_POOL)*100)+"%";
+    ap.style.background=d.airBlown?"var(--red)":"var(--air)";
+    document.getElementById("airnote").textContent=fmt(d.airU)+" / "+fmt(AIR_POOL)+"K booked";
+    document.getElementById("airspend").innerHTML=
+      '<span class="dim">Ocean '+money(d.seaSpend)+'</span> &nbsp;·&nbsp; <span class="'+(d.airSpend>0?"warn":"dim")+'">Air '+money(d.airSpend)+'</span>'+
+      ' &nbsp;·&nbsp; <span class="'+(d.seaSpend+d.airSpend>0?"":"dim")+'">Total '+money(d.seaSpend+d.airSpend)+'</span>';
+  }
+
+  if(document.getElementById("arrtbl")){
+    PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+      var k=p.id+"|"+m.id, q=d.planned[k]||0, a=S.air[k]||{u:0,tier:"air"};
+      var fly=Math.max(0,Math.min(a.u||0,q)), seaQ=q-fly;
+      for(var i=0;i<4;i++){
+        var mr=S.round+i;
+        var inT=S.pipeline.filter(function(x){return x.p===p.id&&x.m===m.id&&x.arrive===mr;}).reduce(function(x,y){return x+y.q;},0);
+        var pl=0;
+        if(a.tier==="chtr" && mr===S.round) pl+=fly;
+        if(a.tier!=="chtr" && mr===S.round+1) pl+=fly;
+        if(mr===S.round+leadTime(S.round,m.id)) pl+=seaQ;
+        var cell=document.getElementById("arr-"+p.id+"-"+m.id+"-"+i);
+        if(!cell) continue;
+        if(mr>12){ cell.textContent="—"; cell.style.color="var(--dimmer)"; continue; }
+        var tot=inT+pl;
+        cell.textContent = tot>0 ? fmt(tot) : "—";
+        cell.style.color = tot===0 ? "var(--dimmer)" : (pl>inT ? "var(--amber)" : "var(--supply)");
+      }
+    });});
+  }
+
+  var btn=document.getElementById("commit");
+  btn.disabled=d.blown||d.airBlown;
+  btn.textContent = d.blown ? "Plan exceeds capacity"
+                  : (d.airBlown ? "Air booking exceeds charter pool"
+                  : "Close "+MONTHS[S.round-1]+" and commit");
+}
+
+/* ---------- actions ---------- */
+function autofill(){
+  S.flags.usedAuto=true;
+  var np={};
+  PRODUCTS.forEach(function(p){
+    MARKETS.forEach(function(m){ S.forecast[p.id][m.id]=statBaseline(S.round,p.id,m.id,S.history); });
+  });
+  var d=derived();
+  PRODUCTS.forEach(function(p){ np[p.id]=d.rows[p.id].need; });
+  var used=0; PRODUCTS.forEach(function(p){ used+=np[p.id]*p.cap; });
+  if(used>d.capBase){ var k=d.capBase/used; PRODUCTS.forEach(function(p){ np[p.id]=Math.round(np[p.id]*k); }); }
+  S.prod=np; render();
+}
+function commit(){
+  var e=Math.min(Date.now()-S.t0, limitFor(S.round)||9e9);
+  S.totalMs+=e; S.cycleMs.push(e);
+  runCycle(); S.t0=Date.now(); S.locking=false; render(true);
+}
+function restart(){ var d=S&&S.introDismissed; S=initialState(); S.introDismissed=!!d; S.started=!!d; S.t0=Date.now(); render(); }
+
+/* ---------- clock ---------- */
+var TICK=null, GRACE=1000, REVIEW=false;
+function limitFor(r){ return r===1 ? MODE.clock1 : MODE.clock; }
+var LIMIT=90000;
+function mmss(ms){ var t=Math.max(0,Math.round(ms/1000)); return Math.floor(t/60)+":"+String(t%60).padStart(2,"0"); }
+function tick(){
+  var el=document.getElementById("clock"), bar=document.getElementById("tbarfill");
+  if(!el){ if(TICK){clearInterval(TICK);TICK=null;} return; }
+  if(S.done||S.fired){ return; }
+  if(!MODE.clock){ el.textContent="untimed"; el.style.color="var(--dimmer)";
+    if(bar){bar.style.width="100%";bar.style.background="var(--line)";} return; }
+  if(!S.started){
+    el.textContent=mmss(MODE.clock1)+" for month 1, then "+mmss(MODE.clock); el.style.color="var(--dimmer)";
+    if(bar){ bar.style.width="100%"; bar.style.background="var(--line)"; }
+    return;
+  }
+  LIMIT=REVIEW?60000:limitFor(S.round);
+  var e=Date.now()-S.t0, left=LIMIT-e;
+  if(bar){
+    bar.style.width=Math.max(0,Math.min(100,(left/LIMIT)*100))+"%";
+    bar.style.background = left<=10000?"var(--red)":(left<=30000?"var(--amber)":"var(--supply)");
+  }
+  if(left>0){
+    el.textContent=mmss(left)+" left · "+mmss(S.totalMs+e)+" total";
+    el.style.color = left<=10000?"var(--red)":(left<=30000?"var(--amber)":"var(--dim)");
+  } else if(e < LIMIT+GRACE){
+    el.textContent="0:00 — locking"; el.style.color="var(--red)";
+  } else if(!S.locking){
+    S.locking=true;
+    if(REVIEW){ S.reviewsShown[S.round]=true; S.t0=Date.now(); S.locking=false; render(); }
+    else { S.flags.buzzer++; autoAdvance(); }
+  }
+}
+function autoAdvance(){
+  var d=derived();
+  if(d.blown){ var k=d.capMax/d.capUsed; PRODUCTS.forEach(function(p){ S.prod[p.id]=Math.floor(S.prod[p.id]*k); }); }
+  if(d.airBlown){ PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ S.air[p.id+"|"+m.id].u=0; });}); }
+  commit();
+}
+
+/* ---------- boss strip ---------- */
+function bossPortrait(t){
+  var b=trustBand(t);
+  return '<svg viewBox="0 0 56 56" role="img" aria-label="'+esc(BOSS.name)+'">'+
+    '<circle cx="28" cy="28" r="26" fill="#0B1620" stroke="'+b.c+'" stroke-width="2" opacity=".9"/>'+
+    '<circle cx="28" cy="22" r="8.5" fill="'+b.c+'" opacity=".75"/>'+
+    '<path d="M 11 47 C 12 35 20 32 28 32 C 36 32 44 35 45 47 Z" fill="'+b.c+'" opacity=".55"/>'+
+    '</svg>';
+}
+function bossStrip(){
+  var b=trustBand(S.trust), t=S.trust;
+  var line = S.bossLine || "You have the plan and you have the network. Twelve cycles. Let us see what you do with them.";
+  var h='<div class="boss">';
+  h+='<div class="por">'+bossPortrait(t)+'</div>';
+  h+='<div class="body"><div class="nm">'+esc(BOSS.name)+'</div><div class="ti">'+esc(BOSS.title)+'</div>'+
+     '<div class="ln">'+esc(line)+'</div></div>';
+  h+='<div class="tmeter">'+
+     '<div class="tlabel"><span class="eyebrow">Standing</span><span style="color:'+b.c+'">'+b.label+'</span></div>'+
+     '<div class="tbarwrap"><i class="fill" style="width:'+t.toFixed(1)+'%;background:'+b.c+';opacity:.8"></i>'+
+       '<i class="mark" style="left:'+TRUST_FIRE+'%;background:var(--red)"></i>'+
+       '<i class="mark" style="left:'+TRUST_WARN+'%;background:var(--amber);opacity:.7"></i></div>'+
+     '<div class="tlabel"><span class="mono dim">'+t.toFixed(0)+'/100</span>'+
+       '<span class="mono '+(S.round<=GRACE_ROUNDS?"dim":(t<TRUST_WARN?"bad":"dim"))+'">'+
+       (S.round<=GRACE_ROUNDS?"grace · through Q1":"termination at "+TRUST_FIRE)+'</span></div>'+
+     '</div></div>';
+  return h;
+}
+
+/* ---------- render ---------- */
+function render(animate){
+  var app=document.getElementById("app");
+  if(S.fired){ app.innerHTML=renderFired(); wireEnd(); window.scrollTo(0,0); return; }
+  if(S.done){ app.innerHTML=renderEnd(); wireEnd(); window.scrollTo(0,0); return; }
+
+  var qr=[4,7,10];
+  if(qr.indexOf(S.round)>=0 && !S.reviewsShown[S.round] && S.introDismissed){
+    app.innerHTML=renderReview(S.round);
+    var rb=document.getElementById('resume');
+    if(rb) rb.addEventListener('click',function(){ S.reviewsShown[S.round]=true; S.t0=Date.now(); S.locking=false; render(); window.scrollTo(0,0); });
+    S.t0=Date.now(); REVIEW=!!MODE.clock;
+    if(TICK) clearInterval(TICK);
+    TICK=setInterval(tick,250); tick();
+    return;
+  }
+  REVIEW=false;
+
+  var r=S.round;
+  if(!S.forecast){
+    S.forecast=zeroPM(0);
+    PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+      S.forecast[p.id][m.id]=statBaseline(r,p.id,m.id,S.history);
+    });});
+  }
+  var real=S.history.filter(function(x){return !x.prior;});
+  var lag=S.history[S.history.length-MODE.lag];
+  var d=derived(), last=S.history[S.history.length-1], lastReal=real[real.length-1], run=real.length?scorecard(S.cum):null;
+  var sigs=SIGNALS[r]||[];
+
+  var html='';
+  html+='<div class="masthead"><div><div class="eyebrow">'+(TEAM?esc(TEAM)+' · ':'')+MODE.name+' · '+MODE.tier+'</div><h1>The IBP Cycle</h1></div>'+
+        '<div class="clock"><div class="eyebrow">Planning month</div><div class="big">'+MONTHS[r-1]+'<span style="font-size:15px;color:var(--dimmer)"> · '+r+'/'+(MODE.cycles||12)+'</span></div>'+
+        '<div class="mono" id="clock" style="font-size:12px;color:var(--dim);margin-top:4px">—</div></div></div>';
+  html+='<div class="tbar"><i id="tbarfill"></i></div>';
+  html+='<div class="stepline">';
+  for(var i=1;i<=(MODE.cycles||12);i++) html+='<i class="'+(i<r?"on":(i===r?"now":""))+'"></i>';
+  html+='</div>';
+
+  if(!S.introDismissed){ html+=renderIntro(); html+='<div id="app-rest" style="display:none">'; }
+
+  html+=bossStrip();
+
+  /* ---------- the wall ---------- */
+  html+='<div class="panel"><div class="ph"><span class="step">◎</span><h3>The network</h3>'+
+        '<span class="note">click a region for the brand detail</span></div><div class="pb">';
+  html+='<div class="mapwrap">'+renderMap()+'</div>';
+  html+='<div class="legend">'+
+    '<span><i style="background:var(--supply)"></i>Ocean / road · in transit</span>'+
+    '<span><i style="background:var(--air)"></i>Air · lands next cycle · 4× rate</span>'+
+    '<span><i style="background:var(--charter)"></i>Charter · lands this cycle · 10× rate</span>'+
+    '<span><i style="background:var(--green)"></i>Cover in band</span>'+
+    '<span><i style="background:var(--amber)"></i>Thin</span>'+
+    '<span><i style="background:var(--red)"></i>Stockout risk</span></div>';
+  if(S.drill){
+    var mm=M(S.drill);
+    html+='<table style="margin-top:12px"><thead><tr><th>'+mm.name+'</th><th>On hand</th><th>In transit</th><th>Next month need</th><th>Cover</th></tr></thead><tbody>';
+    PRODUCTS.forEach(function(p){
+      var inPipe=S.pipeline.filter(function(x){return x.p===p.id&&x.m===S.drill;}).reduce(function(a,b){return a+b.q;},0);
+      var exp=statBaseline(r,p.id,S.drill,S.history)||1, cov=S.inv[p.id][S.drill]/exp;
+      html+='<tr><td><span class="brand">'+p.name+'</span></td><td>'+fmt(S.inv[p.id][S.drill])+'</td>'+
+            '<td class="dim">'+fmt(inPipe)+'</td><td class="dim">'+fmt(exp)+'</td>'+
+            '<td style="color:'+coverColor(cov)+'">'+cov.toFixed(2)+' mo</td></tr>';
+    });
+    html+='</tbody></table>';
+  }
+  html+='</div></div>';
+
+  html+='<div class="grid"><div>';
+
+  /* 1 — demand review */
+  html+='<div class="panel"><div class="ph"><span class="step">1</span><h3>Demand review</h3><span class="note">set the consensus forecast · K units</span></div><div class="pb">';
+  if(sigs.length){
+    sigs.forEach(function(s){
+      html+='<div class="sig '+s.tone+'"><span class="tag">'+s.src+'</span><span>'+s.txt+
+            (s.v?'<div class="prov">source: '+s.v+'</div>':'')+'</span></div>';
+    });
+  } else {
+    html+='<div class="sig" style="border-left-color:var(--line)"><span class="tag">Quiet</span><span class="dim">No new market intelligence this cycle. The statistical baseline stands unless you have a reason to move it.</span></div>';
+  }
+  html+='<table style="margin-top:10px"><thead><tr><th>Brand · region</th><th>Baseline</th><th>Sell-in L1M</th><th>Consumption</th><th>Trade WOS</th><th>On hand</th><th>Consensus</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    MARKETS.forEach(function(m,i){
+      var bl=statBaseline(r,p.id,m.id,S.history);
+      html+='<tr><td>'+(i===0?'<span class="brand">'+p.name+'</span>':'<span class="dim" style="padding-left:12px">↳</span>')+
+            ' <span class="sub">'+m.short+'</span></td>'+
+            '<td class="dim">'+fmt(bl)+'</td>'+
+            '<td>'+(last?fmt(last.demand[p.id][m.id]):"—")+'</td>'+
+            '<td class="dim">'+(lag?fmt(lag.consumption[p.id][m.id]):"—")+'</td>'+
+            '<td class="'+(lag&&Math.abs(lag.wos[p.id][m.id]-TRADE_WOS)>1.2?"warn":"dim")+'">'+(lag?lag.wos[p.id][m.id].toFixed(1):"—")+'</td>'+
+            '<td>'+fmt(S.inv[p.id][m.id])+'</td>'+
+            '<td><input type="number" min="0" data-fc="'+p.id+'|'+m.id+'" value="'+S.forecast[p.id][m.id]+'"></td></tr>';
+    });
+  });
+  html+='</tbody></table><div class="foot">You forecast <em>sell-in</em>. Consumption and trade cover are reported '+MODE.lag+' month'+(MODE.lag>1?'s':'')+' late — when they diverge, the gap is the retailer moving their own inventory, and it always reverses.</div></div></div>';
+
+  /* 2 — supply review */
+  html+='<div class="panel"><div class="ph"><span class="step">2</span><h3>Supply review</h3><span class="note" id="capnote"></span></div><div class="pb">';
+  html+='<div id="underwarn" style="display:none"></div>';
+  html+='<div class="gaugerow"><div>'+dialSVG()+
+        '<div class="row" style="justify-content:center;margin-top:-4px"><span id="capstat" class="dim sub"></span></div></div><div>';
+  html+='<table><thead><tr><th>Brand</th><th>Cover need</th><th>Build plan</th><th>Std units</th><th style="width:30%">Supply vs. demand</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    html+='<tr><td><span class="brand">'+p.name+'</span><br><span class="sub">'+p.cat+' · '+p.cap.toFixed(2)+' std/unit</span></td>'+
+          '<td class="dim" id="need-'+p.id+'"></td>'+
+          '<td><input type="number" min="0" step="10" data-prod="'+p.id+'" value="'+S.prod[p.id]+'"></td>'+
+          '<td class="dim" id="std-'+p.id+'"></td>'+
+          '<td><div class="bal"><div class="sup" id="sup-'+p.id+'"></div><div class="dmk" id="mk-'+p.id+'"></div><span class="lbl" id="lbl-'+p.id+'"></span></div></td></tr>';
+  });
+  html+='</tbody></table></div></div>';
+  html+='<div class="foot">Standard capacity '+fmt(d.capBase)+' · overtime ceiling '+fmt(d.capMax)+'. The coral line is committed demand plus safety stock; the cyan bar is everything you will have. '+
+        'Overtime starts at +'+Math.round(OT_PREMIUM*100)+'% and climbs '+Math.round(OT_STREAK_STEP*100)+' points for every consecutive month you use it, to a ceiling of +'+Math.round(otPremiumFor(OT_STREAK_MAX)*100)+'%. '+
+        (d.otStreak>0 ? '<span class="'+(d.otStreak>=3?"bad":"warn")+'">You are '+d.otStreak+' month'+(d.otStreak>1?'s':'')+' into a run — this cycle bills at +'+Math.round(d.otPrem*100)+'%. A single clean month resets it.</span>'
+                      : 'The line is cool; the next overtime month bills at the base rate.')+'</div></div></div>';
+
+  /* 2b — the freight desk */
+  html+='<div class="panel" style="border-color:'+(d.airU>0?"var(--air)":"var(--line)")+'"><div class="ph"><span class="step">✈</span><h3>Freight desk</h3>'+
+        '<span class="note" id="airnote"></span></div><div class="pb">';
+  html+='<div class="row" style="justify-content:space-between;margin-bottom:4px"><span class="eyebrow">Charter pool this cycle</span><span class="sub" id="airspend"></span></div>';
+  html+='<div class="airpool"><i id="airfill"></i></div>';
+  html+='<div class="foot" style="border:0;margin:6px 0 10px;padding:0">Air moves units you already built — it cannot invent them. Anything you fly comes out of this cycle\'s build plan for that lane, and the pool is capped at '+fmt(AIR_POOL)+'K units.</div>';
+  html+='<table><thead><tr><th>Brand · region</th><th>Sea rate</th><th>Planned build</th><th>Fly</th><th>Service</th><th>Lands</th><th>Freight</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    MARKETS.forEach(function(m,i){
+      var k=p.id+"|"+m.id, a=S.air[k]||{u:0,tier:"air"};
+      html+='<tr><td>'+(i===0?'<span class="brand">'+p.name+'</span>':'<span class="dim" style="padding-left:12px">↳</span>')+
+        ' <span class="sub">'+m.short+'</span></td>'+
+        '<td class="sub">$'+FREIGHT[m.id].toFixed(2)+'</td>'+
+        '<td class="dim" id="fplan-'+p.id+'-'+m.id+'">—</td>'+
+        '<td><input type="number" min="0" step="5" data-air="'+k+'" value="'+(a.u||0)+'" style="width:64px"></td>'+
+        '<td><select data-airtier="'+k+'">'+
+          '<option value="air"'+(a.tier==="air"?" selected":"")+'>Air · 4×</option>'+
+          '<option value="chtr"'+(a.tier==="chtr"?" selected":"")+'>Charter · 10×</option>'+
+        '</select></td>'+
+        '<td id="feta-'+p.id+'-'+m.id+'" class="dim">—</td>'+
+        '<td id="fcost-'+p.id+'-'+m.id+'" class="dim">—</td></tr>';
+    });
+  });
+  html+='</tbody></table>';
+  html+='<div class="foot">Air lands next cycle on any lane. Charter lands <strong>inside this cycle</strong> — it is the only way to fix a shortage you can already see. On NA, air buys you nothing the ocean lane does not already give you; you will still pay for it.</div></div></div>';
+
+  /* 2c — arrivals */
+  html+='<div class="panel"><div class="ph"><span class="step">↳</span><h3>Arrivals schedule</h3><span class="note">when today\'s build actually lands · K units</span></div><div class="pb">';
+  html+='<table id="arrtbl"><thead><tr><th>Brand · region</th><th>Sea lane</th>';
+  for(var a2=0;a2<4;a2++){ var mr2=r+a2; html+='<th>'+(mr2<=12?MONTHS[mr2-1]:"—")+'</th>'; }
+  html+='</tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    MARKETS.forEach(function(m,i){
+      html+='<tr><td>'+(i===0?'<span class="brand">'+p.name+'</span>':'<span class="dim" style="padding-left:12px">↳</span>')+
+            ' <span class="sub">'+m.short+'</span></td><td class="sub">'+leadTime(r,m.id)+'mo</td>';
+      for(var a3=0;a3<4;a3++) html+='<td id="arr-'+p.id+'-'+m.id+'-'+a3+'" class="dim">—</td>';
+      html+='</tr>';
+    });
+  });
+  html+='</tbody></table><div class="foot">Cyan cells are already in transit. Amber cells are what this cycle\'s plan will add — including anything you fly. All of it updates as you type.</div></div></div>';
+
+  /* 3 — reconciliation */
+  html+='<div class="panel"><div class="ph"><span class="step">3</span><h3>Reconciliation</h3><span class="note">who wins when supply is short</span></div><div class="pb">';
+  html+='<div style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><span class="eyebrow">Safety stock target</span><span class="mono" id="sslbl">'+S.ss.toFixed(1)+' weeks of cover</span></div>'+
+        '<input type="range" min="0" max="10" step="0.5" id="ss" value="'+S.ss+'" aria-label="Safety stock weeks"></div>';
+  html+='<table><thead><tr><th>Brand</th><th>Sea lead times</th><th>My override is</th><th>Allocation rule when short</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    var lts=MARKETS.map(function(m){return m.short+" "+leadTime(r,m.id)+"mo";}).join(" · ");
+    html+='<tr><td><span class="brand">'+p.name+'</span></td><td class="dim">'+lts+'</td>'+
+      '<td><select data-hz="'+p.id+'">'+
+        '<option value="1"'+((S.hz[p.id].na||0)>0.5?" selected":"")+'>a lasting shift</option>'+
+        '<option value="0"'+((S.hz[p.id].na||0)>0.5?"":" selected")+'>a one-off spike</option>'+
+      '</select></td>'+
+      '<td><select data-pol="'+p.id+'">'+
+      '<option value="fair"'+(S.policy[p.id]==="fair"?" selected":"")+'>Fair share — pro-rata to plan</option>'+
+      '<option value="long"'+(S.policy[p.id]==="long"?" selected":"")+'>Protect the long lane — feed APAC first</option>'+
+      '<option value="margin"'+(S.policy[p.id]==="margin"?" selected":"")+'>Protect margin — feed North America first</option>'+
+      '<option value="manual"'+(S.policy[p.id]==="manual"?" selected":"")+'>Manual split — I set the shares</option>'+
+      '</select>'+
+      (S.policy[p.id]==="manual" ? '<div class="row" style="margin-top:6px;gap:6px">'+MARKETS.map(function(m){
+          return '<label class="sub" style="display:flex;align-items:center;gap:3px">'+m.short+
+                 ' <input type="number" min="0" max="100" step="5" data-split="'+p.id+'|'+m.id+'" value="'+S.split[p.id][m.id]+'" style="width:52px"> %</label>';
+        }).join('')+'</div>' : '')+
+      '</td></tr>';
+  });
+  html+='</tbody></table><div class="foot">A lasting shift carries your override into the months your build will actually land in; a one-off spike does not. Allocation rules only bite when supply falls short of total need. APAC stock is '+leadTime(r,"apac")+' months from the shelf by sea.</div></div></div>';
+
+  /* 4 — management review */
+  html+='<div class="panel"><div class="ph"><span class="step">4</span><h3>Management review</h3><span class="note">commit the cycle</span></div><div class="pb">';
+  html+='<div class="row"><button class="primary" id="commit"></button><button id="auto">Auto-fill from baseline</button><button id="restart">Restart year</button></div>';
+  if(lastReal){
+    html+='<div style="margin-top:14px"><div class="eyebrow" style="margin-bottom:6px">Last cycle · '+lastReal.month+'</div><table><tbody>'+
+      '<tr><td>Fill rate</td><td class="'+(lastReal.cfr>=0.98?"good":"bad")+'">'+pct(lastReal.cfr)+'</td><td>Lost units</td><td class="'+((lastReal.dTot-lastReal.sTot)>0?"bad":"good")+'">'+fmt(lastReal.dTot-lastReal.sTot)+'</td></tr>'+
+      '<tr><td>Days on hand</td><td>'+lastReal.doh.toFixed(0)+'</td><td>Gross margin</td><td>'+money(lastReal.gm)+'</td></tr>'+
+      '<tr><td>Ocean freight</td><td class="dim">−'+money(lastReal.seaCost)+'</td><td>Air freight</td><td class="'+(lastReal.airCost>0?"warn":"dim")+'">−'+money(lastReal.airCost)+'</td></tr>'+
+      '<tr><td>Carrying cost</td><td class="warn">−'+money(lastReal.carry)+'</td><td>Obsolescence</td><td class="'+(lastReal.waste>0?"bad":"dim")+'">−'+money(lastReal.waste)+'</td></tr>'+
+      (lastReal.callout ? '<tr><td colspan="4" style="text-align:left"><span class="good">✓ '+lastReal.callout+'</span></td></tr>' : '')+
+      '<tr><td>Margin forfeited <span class="sub">this cycle</span></td><td class="'+(lastReal.lostGM>0?"bad":"dim")+'">'+money(lastReal.lostGM)+'</td><td>Standing <span class="sub">change</span></td><td class="'+(lastReal.trustDelta>=0?"good":"bad")+'">'+(lastReal.trustDelta>=0?"+":"−")+Math.abs(lastReal.trustDelta).toFixed(1)+'</td></tr>'+
+      '</tbody></table></div>';
+  }
+  html+='<div class="foot">Committing locks the plan. Demand is drawn from a fixed seed — replaying the year tests judgement, not luck.</div></div></div>';
+
+  /* ledger */
+  if(real.length){
+    html+='<div class="panel"><div class="ph"><span class="step">$</span><h3>Ledger</h3><span class="note">where the margin actually went</span></div><div class="pb" style="overflow-x:auto">';
+    html+='<table class="ledger"><thead><tr><th>Month</th><th>Revenue</th><th>COGS</th><th>Overtime</th><th>Ocean</th><th>Air</th><th>Carrying</th><th>Waste</th><th>Margin</th></tr></thead><tbody>';
+    real.forEach(function(x){
+      html+='<tr><td class="brand">'+x.month+'</td><td>'+money(x.rev)+'</td><td class="dim">−'+money(x.cogs-x.otCost)+'</td>'+
+        '<td class="'+(x.otCost>0?(x.otStreak>=3?"bad":"warn"):"dim")+'">−'+money(x.otCost)+
+          (x.otUnits>0?' <span class="sub">+'+Math.round(x.otPrem*100)+'%</span>':'')+'</td>'+
+        '<td class="dim">−'+money(x.seaCost)+'</td>'+
+        '<td class="'+(x.airCost>0?(x.chtrUnits>0?"bad":"warn"):"dim")+'">−'+money(x.airCost)+'</td>'+
+        '<td class="dim">−'+money(x.carry)+'</td>'+
+        '<td class="'+(x.waste>0?"bad":"dim")+'">−'+money(x.waste)+'</td>'+
+        '<td class="'+(x.gm>0?"good":"bad")+'">'+money(x.gm)+'</td></tr>';
+    });
+    var cc=S.cum;
+    html+='<tr class="tot"><td>YTD</td><td>'+money(cc.rev)+'</td><td>−'+money(cc.cogs-cc.otCost)+'</td>'+
+      '<td class="'+(cc.otCost>0?"warn":"dim")+'">−'+money(cc.otCost)+'</td><td>−'+money(cc.seaCost)+'</td>'+
+      '<td class="'+(cc.airCost>0?"warn":"dim")+'">−'+money(cc.airCost)+'</td><td>−'+money(cc.carry)+'</td>'+
+      '<td class="'+(cc.waste>0?"bad":"dim")+'">−'+money(cc.waste)+'</td>'+
+      '<td class="good">'+money(cc.rev-cc.cogs-cc.carry-cc.waste-cc.seaCost-cc.airCost)+'</td></tr>';
+    html+='</tbody></table><div class="foot">Air freight is broken out on purpose. It is the one line on this page that is entirely a choice you made.</div></div></div>';
+  }
+
+  html+='</div><div>';
+
+  /* scoreboard */
+  html+='<div class="panel"><div class="ph"><h3>Year to date</h3></div><div class="pb">';
+  if(run){
+    html+=kpi("Case fill rate","target 98.0%",pct(run.cfr),run.cfr>=0.98?"var(--green)":"var(--red)");
+    html+=kpi("Forecast error","MAPE · target ≤25%",pct(run.mape),run.mape<=0.25?"var(--green)":"var(--amber)");
+    html+=kpi("Bias","target ±5%",signed(run.bias*100),Math.abs(run.bias)<=0.05?"var(--green)":"var(--amber)");
+    html+=kpi("Inventory position","days · target 75",run.doh.toFixed(0),Math.abs(run.doh-75)<=20?"var(--green)":"var(--amber)");
+    html+=kpi("Margin capture","of full-demand potential",pct(run.capture),run.capture>=0.92?"var(--green)":"var(--amber)");
+    html+=kpi("Air freight","cumulative",money(S.cum.airCost),S.cum.airCost>S.cum.rev*0.015?"var(--red)":"var(--amber)");
+    html+=kpi("Composite","tracking to "+run.title,run.total.toFixed(0),"var(--amber)");
+  } else {
+    html+='<div class="dim" style="padding:16px 0;font-size:12px">Nothing shipped yet. Set the consensus forecast, build the plan, and close January to start the scoreboard.</div>';
+  }
+  html+='<div class="foot">Cumulative across '+real.length+' closed '+(real.length===1?"cycle":"cycles")+'.</div></div></div>';
+
+  html+='<div class="panel"><div class="ph"><h3>Freight rates</h3></div><div class="pb"><table><thead><tr><th>Lane</th><th>Sea</th><th>Air</th><th>Charter</th></tr></thead><tbody>';
+  MARKETS.forEach(function(m){
+    html+='<tr><td class="dim">'+m.short+'</td><td class="sub">$'+FREIGHT[m.id].toFixed(2)+'</td>'+
+      '<td class="warn sub">$'+(FREIGHT[m.id]*AIR_STD).toFixed(2)+'</td>'+
+      '<td class="bad sub">$'+(FREIGHT[m.id]*AIR_CHTR).toFixed(2)+'</td></tr>';
+  });
+  html+='</tbody></table><div class="foot">Per K unit. Contribution per unit is what makes flying worth it or not — DigestEase carries roughly $2.86 in APAC, ReliefMax roughly $0.42. Run that comparison before you book.</div></div></div>';
+
+  html+='<div class="panel"><div class="ph"><h3>Network</h3></div><div class="pb"><table><tbody>';
+  PRODUCTS.forEach(function(p){
+    html+='<tr><td><span class="brand">'+p.name+'</span><br><span class="sub">'+p.cat+'</span></td><td>$'+p.price.toFixed(2)+'<br><span class="sub">−$'+p.cogs.toFixed(2)+' cogs</span></td></tr>';
+  });
+  MARKETS.forEach(function(m){
+    html+='<tr><td class="dim">'+m.name+'</td><td class="sub">'+leadTime(r,m.id)+' mo · '+(m.mult*100).toFixed(0)+'% price</td></tr>';
+  });
+  html+='</tbody></table><div class="foot">Carrying cost 22%/yr on stock <em>and</em> goods in transit.</div></div></div>';
+
+  html+='</div></div>';
+  if(!S.introDismissed) html+='</div>';
+
+  app.innerHTML=html;
+  wire();
+  drawVessels(!!animate);
+  refresh();
+}
+
+function renderIntro(){
+  var h='';
+  h+='<div class="panel intro"><div class="ph"><span class="step">i</span><h3>What this is</h3><span class="note">read once · two minutes</span></div><div class="pb">'+
+  '<p style="margin:0 0 10px">You are running <strong>integrated business planning</strong> for a three-brand consumer-health portfolio across three supply regions, for twelve months. Each month you close one IBP cycle. Demand is fixed by seed, so replaying tests judgement rather than luck.</p>'+
+  '<p style="margin:0 0 12px">You report to <strong>'+esc(BOSS.name)+'</strong>, '+esc(BOSS.title)+'. She reacts to every cycle you close, and her standing in you moves with your last few months, not your whole year. Let it fall below '+TRUST_FIRE+' and the run ends there. <strong>Nothing is fatal before the end of Q1</strong> — the first three cycles are yours to learn in.</p>'+
+  '<table><thead><tr><th>The four stages</th><th>What you decide</th></tr></thead><tbody>'+
+  '<tr><td><span class="brand">1 · Demand review</span></td><td style="text-align:left">Set the consensus forecast. The statistical baseline reads history, not the news — the signals above it are yours to price in. Not all of them are true.</td></tr>'+
+  '<tr><td><span class="brand">2 · Supply review</span></td><td style="text-align:left">Set the build plan against a shared, binding plant capacity. Overtime is available at +'+Math.round(OT_PREMIUM*100)+'% COGS — but the rate climbs '+Math.round(OT_STREAK_STEP*100)+' points for every consecutive month you run it, to +'+Math.round(otPremiumFor(OT_STREAK_MAX)*100)+'%. One clean month resets it. Overtime is a tactic; it is not a plan.</td></tr>'+
+  '<tr><td><span class="brand">✈ · Freight desk</span></td><td style="text-align:left">Decide how each lane moves. Ocean is the baseline. Air lands next cycle at four times the rate. Emergency charter lands <em>inside this cycle</em> at ten times the rate — and it is the only thing in the game that beats a lead time.</td></tr>'+
+  '<tr><td><span class="brand">3 · Reconciliation</span></td><td style="text-align:left">Set safety-stock cover and decide which region goes short when supply cannot cover everyone.</td></tr>'+
+  '<tr><td><span class="brand">4 · Management review</span></td><td style="text-align:left">Commit. The plan locks, demand realises, and the P&amp;L lands.</td></tr>'+
+  '</tbody></table>'+
+  '<p style="margin:12px 0 8px"><strong>The constraint everything follows from:</strong> what you build today does not help today — unless you pay ten times the freight rate to make it. That escape hatch is capped at '+fmt(AIR_POOL)+'K units a cycle, and it can only move units you already built.</p>'+
+  '<table><thead><tr><th>Region</th><th>Sea lead time</th><th>Price realisation</th><th>Sea freight</th></tr></thead><tbody>'+
+  MARKETS.map(function(m){return '<tr><td>'+m.name+'</td><td>'+m.lt+' month'+(m.lt>1?'s':'')+'</td><td>'+(m.mult*100).toFixed(0)+'%</td><td>$'+FREIGHT[m.id].toFixed(2)+'/K</td></tr>';}).join('')+
+  '</tbody></table>'+
+  '<p style="margin:12px 0 8px"><strong>Scored out of 100:</strong> case fill rate 30 · margin capture 25 · inventory position 20 · forecast error 15 · bias 10. Stocking out and overstocking are both punished, and freight comes straight out of margin capture.</p>'+
+  '<p style="margin:14px 0 8px"><strong>Start here.</strong> Press <em>Auto-fill from baseline</em>, then change only what you disagree with. Starting from blank is the most common way to lose. Press <strong>Enter</strong> to commit.</p>'+
+  '<p style="margin:14px 0 8px"><strong>Pick a level.</strong></p>'+
+  '<table><tbody>'+["sandbox","career","pressure"].map(function(k){var Mo=MODES[k];
+    return '<tr><td style="width:158px"><span class="brand">'+Mo.name+'</span><br><span class="sub">'+Mo.tier+(Mo.clock?' · '+(Mo.clock/1000)+'s a cycle':'')+'</span></td>'+
+           '<td style="text-align:left">'+Mo.blurb+'</td>'+
+           '<td style="width:98px"><button data-mode="'+k+'" class="'+(MODE.key===k?"primary":"")+'">'+(MODE.key===k?"Selected":"Choose")+'</button></td></tr>';
+  }).join('')+'</tbody></table>'+
+  '<div class="row" style="margin-top:14px">'+
+    '<label class="sub" style="display:flex;align-items:center;gap:6px">Player or team name '+
+    '<input id="teamname" type="text" maxlength="28" value="'+esc(TEAM||"")+'" placeholder="optional" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:6px 8px;border-radius:2px;width:180px"></label></div>'+
+  '<div class="row" style="margin-top:10px"><button class="primary" id="begin">Start — shared seed</button><button id="beginr">Start — random seed</button></div>'+
+  '<div class="dim" style="margin-top:8px;font-size:11.5px">The shared seed gives everyone the same twelve months, so scores are comparable. A random seed gives a fresh year for practice.</div>'+
+  '<div class="foot">Designed by Sushant Turekar · © 2026 · Illustrative CPG economics. No company data is used anywhere in this model.</div></div></div>';
+  return h;
+}
+
+function kpi(label,sub,val,color){
+  return '<div class="kpi"><div><div class="eyebrow">'+label+'</div><div class="t">'+sub+'</div></div><div class="v" style="color:'+color+'">'+val+'</div></div>';
+}
+
+/* ---------- quarterly review — the only place Vos discusses freight ---------- */
+function renderReview(atRound){
+  var real=S.history.filter(function(x){return !x.prior;});
+  var q=Math.floor((atRound-1)/3);
+  var qStart=(q-1)*3, qRows=real.slice(qStart,qStart+3);
+  var c=scorecard(S.cum), b=trustBand(S.trust);
+
+  var qAir=0, qChtr=0, qSea=0, qRev=0, qLost=0, qOT=0;
+  qRows.forEach(function(x){ qAir+=x.airCost; qChtr+=x.chtrUnits; qSea+=x.seaCost; qRev+=x.rev; qLost+=x.lostGM; qOT+=x.otCost; });
+  var airShare = qRev>0 ? qAir/qRev : 0;
+
+  /* Vos on freight — the review conversation */
+  var fl;
+  if(qAir<=0) fl="Nothing flew this quarter. Either the plan was right or you got lucky. I will take either one at this rate.";
+  else if(airShare>0.025) fl="Air freight was "+money(qAir)+" this quarter — "+(airShare*100).toFixed(1)+"% of revenue. That is not a freight bill, that is a subsidy for a plan that did not work. It stops or it shows up in the review that matters.";
+  else if(qAir>qLost*1.3) fl="You spent "+money(qAir)+" flying stock to save "+money(qLost)+" of margin. Do that arithmetic before you book the plane, not after.";
+  else if(qChtr>0) fl="You chartered. It cost "+money(qAir)+" and it held the service. I do not love it, but I can defend it — once.";
+  else fl="Freight is "+money(qSea+qAir)+", of which "+money(qAir)+" flew. That is inside what I would sign off.";
+
+  /* Vos on the plan itself — the forecast conversation, in symptoms.
+     This is the half of the scorecard the in-cycle trust grade cannot see. */
+  var qBias=0, qOT=0, qWos=0;
+  qRows.forEach(function(x){ qBias+=(x.bias||0); qOT+=(x.otUnits>0?1:0); qWos+=(x.avgWos||0); });
+  qBias = qRows.length ? qBias/qRows.length : 0;
+  qWos  = qRows.length ? qWos/qRows.length : TRADE_WOS;
+  var pl;
+  if(qOT>=3 && qBias>0.08)
+    pl="Three months of overtime and a forecast that ran "+signed(qBias*100)+" over the whole quarter. You are not short of capacity — you are building to a number that is not real, and then paying a premium to hit it. Fix the number and the overtime problem solves itself.";
+  else if(qBias>0.10)
+    pl="Your forecast ran "+signed(qBias*100)+" above what the accounts actually ordered, every month of the quarter. That is not noise, that is a habit — and we are financing it in the warehouse.";
+  else if(qBias<-0.10)
+    pl="You came in "+signed(qBias*100)+" under all quarter. Under-calling it looks disciplined right up until a long lane cannot recover, and then it looks like exactly what it is.";
+  else if(qWos>TRADE_WOS+1.4)
+    pl="Trade cover is averaging "+qWos.toFixed(1)+" weeks against a normal four. Our customers are holding stock they have not sold. When that unwinds, the orders stop — and I do not want to hear it described as a demand collapse.";
+  else if(qOT>=3)
+    pl=(qOT>=3?"Overtime in all three months of the quarter.":"Overtime in "+qOT+" of the three.")+" The service held, so I will not make a speech about it — but a plant that never cools down is a plant that breaks in the month you needed it.";
+  else
+    pl="The plan and the outcome are roughly the same document this quarter. That is rarer than you think, and it is the whole job.";
+
+  var verdict;
+  if(S.trust>=72) verdict="This is a strong quarter and I am not going to overwork it. Keep the discipline.";
+  else if(S.trust>=TRUST_WARN) verdict="You are inside the lines. Not comfortable — inside them. I want the next quarter to be duller than this one.";
+  else verdict="This is the conversation I did not want to have. Your standing is "+S.trust.toFixed(0)+". Below "+TRUST_FIRE+" I stop the run. You have one quarter.";
+
+  var h='';
+  h+='<div class="masthead"><div><div class="eyebrow">Quarterly review · Q'+q+' closed</div><h1>'+esc(BOSS.name)+' wants a word</h1></div>'+
+     '<div class="clock"><div class="eyebrow">Tracking to</div><div class="big">'+c.total.toFixed(0)+'<span style="font-size:15px;color:var(--dimmer)">/100</span></div>'+
+     '<div class="mono" id="clock" style="font-size:12px;color:var(--dim);margin-top:4px">—</div></div></div>';
+  h+='<div class="tbar"><i id="tbarfill"></i></div>';
+  h+=bossStrip();
+
+  h+='<div class="grid"><div>';
+  h+='<div class="panel" style="border-color:'+b.c+'"><div class="ph"><span class="step">Q'+q+'</span><h3>The verdict</h3></div><div class="pb">';
+  h+='<div class="sig flat" style="display:block"><div style="font-size:13.5px;font-style:italic">“'+esc(verdict)+'”</div></div>';
+  h+='<div class="sig '+((qBias>0.10||qBias<-0.10||qOT>=3)?"hot":"cold")+'" style="display:block"><span class="tag" style="width:auto;display:block;margin-bottom:4px">On the plan</span>'+
+     '<div style="font-size:13.5px;font-style:italic">“'+esc(pl)+'”</div></div>';
+  h+='<div class="sig '+(airShare>0.025?"hot":"cold")+'" style="display:block"><span class="tag" style="width:auto;display:block;margin-bottom:4px">On freight</span>'+
+     '<div style="font-size:13.5px;font-style:italic">“'+esc(fl)+'”</div></div>';
+  h+='<table style="margin-top:10px"><thead><tr><th>Quarter</th><th>Fill</th><th>DOH</th><th>Overtime</th><th>Ocean</th><th>Air</th><th>Margin</th></tr></thead><tbody>';
+  qRows.forEach(function(x){
+    h+='<tr><td class="brand">'+x.month+'</td>'+
+      '<td class="'+(x.cfr>=0.98?"good":(x.cfr>=0.94?"warn":"bad"))+'">'+pct(x.cfr)+'</td>'+
+      '<td>'+x.doh.toFixed(0)+'</td>'+
+      '<td class="'+(x.otCost>0?(x.otStreak>=3?"bad":"warn"):"dim")+'">'+money(x.otCost)+
+        (x.otUnits>0?' <span class="sub">+'+Math.round(x.otPrem*100)+'%</span>':'')+'</td>'+
+      '<td class="dim">'+money(x.seaCost)+'</td>'+
+      '<td class="'+(x.airCost>0?(x.chtrUnits>0?"bad":"warn"):"dim")+'">'+money(x.airCost)+'</td>'+
+      '<td>'+money(x.gm)+'</td></tr>';
+  });
+  h+='</tbody></table><div class="foot">Standing moves on your last few cycles, not the whole year. A bad quarter is recoverable. Two are not.</div></div></div>';
+
+  if(atRound===7){
+    var h1=real.slice(0,6), dd={}, ss2={}, tot=0, sh=0;
+    MARKETS.forEach(function(m){ dd[m.id]=0; ss2[m.id]=0; });
+    h1.forEach(function(x){ PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+      dd[m.id]+=x.demand[p.id][m.id]; ss2[m.id]+=x.shipped[p.id][m.id];
+      tot+=x.demand[p.id][m.id]; sh+=x.shipped[p.id][m.id];
+    });});});
+    h+='<div class="panel"><div class="ph"><span class="step">H1</span><h3>Service by region · half year</h3></div><div class="pb"><table>'+
+       '<thead><tr><th>Region</th><th>Sea lead time</th><th>Ordered</th><th>Shipped</th><th>Fill</th><th>Unfilled</th></tr></thead><tbody>';
+    MARKETS.forEach(function(m){
+      var f=dd[m.id]>0?ss2[m.id]/dd[m.id]:1;
+      h+='<tr><td>'+m.name+'</td><td class="dim">'+m.lt+'mo</td><td>'+fmt(dd[m.id])+'</td><td>'+fmt(ss2[m.id])+'</td>'+
+         '<td class="'+(f>=0.98?"good":(f>=0.94?"warn":"bad"))+'">'+pct(f)+'</td><td class="'+(dd[m.id]-ss2[m.id]>0?"bad":"dim")+'">'+fmt(dd[m.id]-ss2[m.id])+'</td></tr>';
+    });
+    h+='</tbody></table><div class="foot">Portfolio fill '+pct(sh/tot)+' across cycles 1–6.</div></div></div>';
+  }
+
+  h+='</div><div>';
+  h+='<div class="panel"><div class="ph"><h3>Year to date</h3></div><div class="pb">'+
+     kpi("Case fill rate","target 98.0%",pct(c.cfr),c.cfr>=0.98?"var(--green)":"var(--red)")+
+     kpi("Margin capture","target 92%",pct(c.capture),c.capture>=0.92?"var(--green)":"var(--amber)")+
+     kpi("Inventory position","target 75 days",c.doh.toFixed(0),Math.abs(c.doh-75)<=20?"var(--green)":"var(--amber)")+
+     kpi("Forecast error","MAPE",pct(c.mape),c.mape<=0.20?"var(--green)":"var(--amber)")+
+     kpi("Air freight","cumulative",money(S.cum.airCost),S.cum.airCost>0?"var(--amber)":"var(--dim)")+
+     kpi("Margin forfeited","cumulative",money(S.cum.lostGM),"var(--red)")+
+     '<div class="foot">Nothing here is a recommendation. Reading it is the job.</div></div></div>';
+  h+='<div class="panel"><div class="pb"><button class="primary" id="resume" style="width:100%">Back to work</button>'+
+     '<div class="foot">'+(MODE.clock?"One minute on the clock. It advances on its own.":"Take your time.")+'</div></div></div>';
+  h+='</div></div>';
+  return h;
+}
+
+/* ---------- endings ---------- */
+function regionFills(){
+  var real=S.history.filter(function(x){return !x.prior;}), dd={}, ss2={};
+  MARKETS.forEach(function(m){ dd[m.id]=0; ss2[m.id]=0; });
+  real.forEach(function(x){ PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    dd[m.id]+=x.demand[p.id][m.id]; ss2[m.id]+=x.shipped[p.id][m.id];
+  });});});
+  var out={}; MARKETS.forEach(function(m){ out[m.id]= dd[m.id]>0 ? ss2[m.id]/dd[m.id] : 1; });
+  return out;
+}
+
+function firingFlavor(){
+  var rf=regionFills(), c=scorecard(S.cum);
+  var worst=MARKETS[0].id, best=MARKETS[0].id;
+  MARKETS.forEach(function(m){ if(rf[m.id]<rf[worst]) worst=m.id; if(rf[m.id]>rf[best]) best=m.id; });
+  var spread=rf[best]-rf[worst];
+  var burn=S.cum.otCost+S.cum.airCost;
+
+  if(spread>0.14 && rf[worst]<0.88 && leadTime(1,worst)>=2){
+    return {
+      key:"bleed",
+      title:"The lane you could not see",
+      kicker:"Terminated · "+MONTHS[S.firedRound-1]+" · month "+S.firedRound+" of 12",
+      line:"I am not going to pretend this was one bad month. "+M(worst).name+" has been starving since before either of us noticed. By the time it showed up in a number, the correction was already "+leadTime(1,worst)+" months away from landing. That is the part of this job nobody can rescue you from, and it is the part I hired you to see coming.",
+      body:"You looked fine on paper for months. Portfolio fill held up because "+M(best).name+" carried it — "+pct(rf[best])+" there against "+pct(rf[worst])+" on the lane that was quietly emptying. Nothing you committed after that point could have landed in time. The plan was already written.",
+      lesson:"This is the ending the model is actually about. On a "+leadTime(1,worst)+"-month lane you are never planning for the month on the screen — and by the time a long lane looks wrong, the fix is a quarter away. Air freight exists for exactly this, and it costs ten times the rate because it is the only thing that beats the clock.",
+      rare:true
+    };
+  }
+  if(burn > S.cum.lostGM*0.8 && burn > S.cum.rev*0.028){
+    return {
+      key:"cost",
+      title:"Managed out",
+      kicker:"Terminated · "+MONTHS[S.firedRound-1]+" · month "+S.firedRound+" of 12",
+      line:"You never missed a month. That is not the problem. The problem is what it cost to never miss a month. "+money(burn)+" in overtime and air freight against "+money(S.cum.lostGM)+" of margin you were protecting. Finance can read that ratio as well as I can.",
+      body:"Overtime in "+S.flags.otMonths+" of "+(S.firedRound)+" cycles. Air freight in "+S.flags.airMonths+", charter in "+S.flags.chtrMonths+". Every one of those was a real save. Collectively they turned a planning function into a rescue operation with a standing budget.",
+      lesson:"Overtime and air are timing decisions, not policies. The test before you book either one is simple: is the contribution on the units I am saving bigger than the premium I am about to pay? On ReliefMax into APAC it almost never is. On DigestEase it often is.",
+      rare:false
+    };
+  }
+  return {
+    key:"service",
+    title:"Walked out",
+    kicker:"Terminated · "+MONTHS[S.firedRound-1]+" · month "+S.firedRound+" of 12",
+    line:"I have spent the last two months on the phone with accounts explaining why we sold them something we could not ship. I am not doing a third. Portfolio fill is "+pct(c.cfr)+" against a 98 commitment.",
+    body:"You forfeited "+money(S.cum.lostGM)+" of contribution on orders that were already sold. That number never appears in the P&L, which is exactly why nobody upstairs stopped you — and exactly why it was my problem and not theirs.",
+    lesson:"The cheapest unit of service is the one you planned for three months ago. The most expensive is the one you did not, and neither overtime nor a chartered plane fully closes that gap once the month has started.",
+    rare:false
+  };
+}
+
+function renderFired(){
+  var f=firingFlavor(), c=scorecard(S.cum), rf=regionFills();
+  var h='';
+  h+='<div class="masthead"><div><div class="eyebrow" style="color:var(--red)">'+f.kicker+'</div><h1>'+f.title+'</h1></div>'+
+     '<div class="clock"><div class="eyebrow">Standing</div><div class="big" style="color:var(--red)">'+S.trust.toFixed(0)+'</div></div></div>';
+
+  h+='<div class="panel" style="border-color:var(--red)"><div class="pb"><div class="boss" style="border:0;padding:0;margin:0;background:transparent">'+
+     '<div class="por">'+bossPortrait(S.trust)+'</div>'+
+     '<div class="body"><div class="nm">'+esc(BOSS.name)+'</div><div class="ti">'+esc(BOSS.title)+'</div>'+
+     '<div class="ln" style="font-size:14.5px">'+esc(f.line)+'</div></div></div></div></div>';
+
+  h+='<div class="panel"><div class="ph"><span class="step">✕</span><h3>What actually happened</h3>'+
+     (f.rare?'<span class="note" style="color:var(--amber)">rare ending</span>':'')+'</div><div class="pb">';
+  h+='<div style="font-size:13.5px;margin-bottom:12px">'+esc(f.body)+'</div>';
+  h+='<table><thead><tr><th>Region</th><th>Sea lead time</th><th>Fill to termination</th></tr></thead><tbody>';
+  MARKETS.forEach(function(m){
+    h+='<tr><td>'+m.name+'</td><td class="dim">'+m.lt+' mo</td><td class="'+(rf[m.id]>=0.98?"good":(rf[m.id]>=0.94?"warn":"bad"))+'">'+pct(rf[m.id])+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<table style="margin-top:10px"><tbody>'+
+    '<tr><td>Cycles survived</td><td class="brand">'+S.firedRound+' of 12</td><td>Portfolio fill</td>'+
+    '<td class="'+(c.cfr>=0.98?"good":(c.cfr>=0.94?"warn":"bad"))+'">'+pct(c.cfr)+'</td></tr>'+
+    '<tr><td>Margin forfeited</td><td class="bad">'+money(S.cum.lostGM)+'</td><td>Average cover</td><td>'+c.doh.toFixed(0)+' days</td></tr>'+
+    '<tr><td>Overtime premium</td><td class="warn">'+money(S.cum.otCost)+'</td><td>Air freight</td><td class="'+(S.cum.airCost>0?"warn":"dim")+'">'+money(S.cum.airCost)+'</td></tr>'+
+    '</tbody></table>';
+  h+='<div class="sig cold" style="display:block;margin-top:14px"><span class="tag" style="width:auto;display:block;margin-bottom:4px">The lesson</span>'+
+     '<div>'+esc(f.lesson)+'</div></div>';
+  h+='<div class="foot">Three ways to lose this job exist. You found '+(f.rare?'the one most players never see.':'this one.')+'</div></div></div>';
+
+  h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
+
+  h+='<div class="row"><button class="primary" id="again">Run the year again</button>'+
+     '<span class="dim">Same demand seed. The month that ended you is still there.</span></div>';
+  return h;
+}
+
+function trustSpark(){
+  var t=S.trustHist, n=t.length, W=640, H=110;
+  var x=function(i){ return 8+(i/(Math.max(1,n-1)))*(W-16); };
+  var y=function(v){ return H-10-(v/100)*(H-24); };
+  var s='<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto" role="img" aria-label="Standing over time">';
+  s+='<rect x="8" y="'+y(TRUST_FIRE)+'" width="'+(W-16)+'" height="'+(y(0)-y(TRUST_FIRE))+'" fill="var(--red)" opacity=".10"/>';
+  s+='<line x1="8" y1="'+y(TRUST_FIRE)+'" x2="'+(W-8)+'" y2="'+y(TRUST_FIRE)+'" stroke="var(--red)" stroke-dasharray="4 4" stroke-width="1"/>';
+  s+='<line x1="8" y1="'+y(TRUST_WARN)+'" x2="'+(W-8)+'" y2="'+y(TRUST_WARN)+'" stroke="var(--amber)" stroke-dasharray="3 6" stroke-width="1" opacity=".6"/>';
+  var dpath="";
+  for(var i=0;i<n;i++) dpath+=(i?" L ":"M ")+x(i).toFixed(1)+" "+y(t[i]).toFixed(1);
+  s+='<path d="'+dpath+'" fill="none" stroke="var(--supply)" stroke-width="2"/>';
+  for(var j=0;j<n;j++){
+    s+='<circle cx="'+x(j).toFixed(1)+'" cy="'+y(t[j]).toFixed(1)+'" r="2.6" fill="'+trustBand(t[j]).c+'"/>';
+    if(j>0) s+='<text x="'+x(j).toFixed(1)+'" y="'+(H-1)+'" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="var(--dimmer)">'+MONTHS[j-1]+'</text>';
+  }
+  s+='<text x="12" y="'+(y(TRUST_FIRE)-4)+'" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="var(--red)">TERMINATION '+TRUST_FIRE+'</text>';
+  s+='</svg>';
+  return s;
+}
+
+function renderEnd(){
+  var c=scorecard(S.cum), h='';
+  h+='<div class="masthead"><div><div class="eyebrow">'+(TEAM?esc(TEAM)+' · ':'')+'Fiscal year closed · '+MODE.name+' · '+MODE.tier+'</div><h1>Management Review</h1></div>'+
+     '<div class="clock"><div class="eyebrow">Composite</div><div class="big" style="color:var(--amber)">'+c.total.toFixed(0)+'<span style="font-size:15px;color:var(--dimmer)">/100</span></div></div></div>';
+
+  var b=trustBand(S.trust);
+  var final;
+  if(S.trust>=80) final="Twelve cycles and I never had to step in once. I am putting your name forward. Do not make me regret the sentence I just wrote.";
+  else if(S.trust>=62) final="You closed the year. Service held, the P&L is defensible, and I did not have to explain you to anyone above me. That is a good year.";
+  else if(S.trust>=45) final="You survived it. I have seen worse and I have seen a lot better. Come back in January and be duller.";
+  else final="You finished the year, which at one point I did not expect. Do not read that as an endorsement.";
+
+  h+='<div class="panel" style="border-color:'+b.c+'"><div class="pb"><div class="boss" style="border:0;padding:0;margin:0;background:transparent">'+
+     '<div class="por">'+bossPortrait(S.trust)+'</div>'+
+     '<div class="body"><div class="nm">'+esc(BOSS.name)+'</div><div class="ti">'+esc(BOSS.title)+'</div>'+
+     '<div class="ln" style="font-size:14.5px">'+esc(final)+'</div></div>'+
+     '<div class="tmeter"><div class="tlabel"><span class="eyebrow">Final standing</span><span style="color:'+b.c+'">'+b.label+'</span></div>'+
+     '<div class="tbarwrap"><i class="fill" style="width:'+S.trust.toFixed(1)+'%;background:'+b.c+';opacity:.8"></i></div>'+
+     '<div class="tlabel"><span class="mono dim">'+S.trust.toFixed(0)+'/100</span></div></div>'+
+     '</div></div></div>';
+
+  if(TEAM) h+='<div class="panel" style="border-color:var(--amber)"><div class="pb" style="text-align:center;padding:20px">'+
+     '<div class="eyebrow">Final score</div><div class="disp" style="font-size:52px;font-weight:800;line-height:1;color:var(--amber)">'+c.total.toFixed(0)+'</div>'+
+     '<div class="brand" style="font-size:18px;margin-top:8px">'+esc(TEAM)+'</div>'+
+     '<div class="dim" style="margin-top:4px">'+c.arch.name+' · '+c.title+'</div></div></div>';
+
+  h+='<div class="panel"><div class="ph"><span class="step">✓</span><h3>'+c.arch.name+'</h3><span class="note">'+c.title+' · '+c.total.toFixed(0)+'/100</span></div><div class="pb">';
+  h+='<div style="font-size:14px;margin-bottom:12px">'+c.arch.line+'</div>';
+  h+='<table><thead><tr><th>Dimension</th><th>Result</th><th>Target</th><th>vs. target</th><th>Points</th></tr></thead><tbody>';
+  h+=srow("Case fill rate",pct(c.cfr),"98.0%",signed((c.cfr-0.98)*100),c.cfr>=0.98,c.parts.sFill,30);
+  h+=srow("Margin capture",pct(c.capture),"92.0%",signed((c.capture-0.92)*100),c.capture>=0.92,c.parts.sCap,25);
+  h+=srow("Inventory position",c.doh.toFixed(0)+" days","75 days",(c.doh>=75?"+":"−")+Math.abs(c.doh-75).toFixed(0)+" days",Math.abs(c.doh-75)<=20,c.parts.sInv,20);
+  h+=srow("Forecast error (MAPE)",pct(c.mape),"20.0%",signed((c.mape-0.20)*100),c.mape<=0.20,c.parts.sAcc,15);
+  h+=srow("Forecast bias",signed(c.bias*100),"±8.0%",c.bias>0?"over-forecast":"under-forecast",Math.abs(c.bias)<=0.08,c.parts.sBias,10);
+  h+='</tbody></table>'+
+     '<table style="margin-top:10px"><thead><tr><th>Full year, cumulative</th><th>Amount</th><th style="text-align:left">&nbsp;</th></tr></thead><tbody>'+
+     '<tr><td>Revenue</td><td>'+money(S.cum.rev)+'</td><td class="sub" style="text-align:left">on units actually shipped</td></tr>'+
+     '<tr><td>Margin earned</td><td class="good">'+money(c.gm)+'</td><td class="sub" style="text-align:left">after freight, carrying, overtime and write-offs</td></tr>'+
+     '<tr><td>Ocean &amp; road freight</td><td class="dim">−'+money(S.cum.seaCost)+'</td><td class="sub" style="text-align:left">baseline rate on every unit dispatched</td></tr>'+
+     '<tr><td><strong>Air freight</strong></td><td class="'+(S.cum.airCost>0?"warn":"dim")+'">−'+money(S.cum.airCost)+'</td><td class="sub" style="text-align:left">'+fmt(S.cum.airUnits)+'K flown, of which '+fmt(S.cum.chtrUnits)+'K chartered same-cycle</td></tr>'+
+     '<tr><td>Carrying cost</td><td class="warn">−'+money(S.cum.carry)+'</td><td class="sub" style="text-align:left">22%/yr on stock and goods in transit</td></tr>'+
+     '<tr><td>Overtime premium</td><td class="warn">−'+money(S.cum.otCost)+'</td><td class="sub" style="text-align:left">'+S.flags.otMonths+' month'+(S.flags.otMonths===1?'':'s')+' used · longest unbroken run '+S.flags.otStreakMax+', billing up to +'+Math.round(otPremiumFor(S.flags.otStreakMax)*100)+'%</td></tr>'+
+     '<tr><td>Obsolescence</td><td class="'+(S.cum.waste>0?"bad":"dim")+'">−'+money(S.cum.waste)+'</td><td class="sub" style="text-align:left">stock written off above six months of cover</td></tr>'+
+     '<tr><td><strong>Margin forfeited to stockouts</strong></td><td class="bad">'+money(S.cum.lostGM)+'</td><td class="sub" style="text-align:left">contribution on orders you could not fill</td></tr>'+
+     '</tbody></table>'+
+     '<div class="foot">Margin forfeited is opportunity cost, not a charge — it never appears in the P&L, which is exactly why it goes unmanaged.</div></div></div>';
+
+  var bg=badges(c);
+  if(bg.length){
+    h+='<div class="panel"><div class="ph"><span class="step">★</span><h3>Unlocked</h3><span class="note">'+bg.length+' of 11</span></div><div class="pb"><table><tbody>';
+    bg.forEach(function(x){ h+='<tr><td style="width:190px"><span class="brand good">'+x[0]+'</span></td><td style="text-align:left" class="dim">'+x[1]+'</td></tr>'; });
+    h+='</tbody></table><div class="foot">Unscored. Eleven exist; you found '+bg.length+'.</div></div></div>';
+  }
+
+  h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
+
+  var att=attribution(c);
+  h+='<div class="panel"><div class="ph"><span class="step">Δ</span><h3>Where the '+(100-c.total).toFixed(0)+' points went</h3><span class="note">largest loss first</span></div><div class="pb">';
+  if(!att.length){ h+='<div class="dim" style="padding:14px 0">Nothing material to attribute. That is a clean year.</div>'; }
+  att.forEach(function(a){
+    h+='<div class="sig hot" style="display:block;margin-bottom:10px"><div class="row" style="justify-content:space-between;align-items:baseline">'+
+       '<span class="brand" style="font-size:13px">'+a.head+'</span>'+
+       '<span class="mono bad" style="font-size:16px;font-weight:600">−'+a.pts.toFixed(1)+' pts</span></div>'+
+       '<div style="margin-top:5px">'+a.detail+'</div>'+
+       '<div class="dim" style="margin-top:5px;font-size:11.5px">→ '+a.fix+'</div></div>';
+  });
+  h+='</div></div>';
+
+  h+='<div class="panel"><div class="ph"><span class="step">12</span><h3>Cycle log</h3></div><div class="pb" style="overflow-x:auto"><table><thead><tr><th>Month</th><th>Demand</th><th>Shipped</th><th>Fill</th><th>DOH</th><th>Air</th><th>Margin</th><th>Standing</th><th>Note</th></tr></thead><tbody>';
+  var notes={3:"competitor recall",5:"line maintenance",6:"APAC launch",7:"port congestion",10:"batch held",11:"season collapse"};
+  S.history.filter(function(x){return !x.prior;}).forEach(function(x){
+    h+='<tr><td class="brand">'+x.month+'</td><td>'+fmt(x.dTot)+'</td><td>'+fmt(x.sTot)+'</td>'+
+       '<td class="'+(x.cfr>=0.98?"good":(x.cfr>=0.94?"warn":"bad"))+'">'+pct(x.cfr)+'</td>'+
+       '<td class="'+(x.doh>90?"warn":(x.doh<30?"bad":"good"))+'">'+x.doh.toFixed(0)+'</td>'+
+       '<td class="'+(x.airCost>0?(x.chtrUnits>0?"bad":"warn"):"dim")+'">'+(x.airUnits>0?fmt(x.airUnits)+"K":"—")+'</td>'+
+       '<td>'+money(x.gm)+'</td>'+
+       '<td class="'+(x.trust>=62?"good":(x.trust>=TRUST_WARN?"warn":"bad"))+'">'+x.trust.toFixed(0)+'</td>'+
+       '<td class="sub" style="text-align:left">'+((notes[x.round]||"")+(x.otUnits>0?(notes[x.round]?" · ":"")+"overtime":"")+(x.chtrUnits>0?" · charter":""))+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+
+  if(TICK){ clearInterval(TICK); TICK=null; }
+  if(MODE.clock){
+    var tt=S.totalMs, avg=S.cycleMs.length?tt/S.cycleMs.length:0;
+    h+='<div class="panel"><div class="ph"><span class="step">⏱</span><h3>Time on the clock</h3></div><div class="pb"><table><tbody>'+
+       '<tr><td>Total</td><td class="brand">'+mmss(tt)+'</td><td>Average per cycle</td><td>'+mmss(avg)+'</td></tr>'+
+       '</tbody></table><div class="foot">Time is not scored; it is the tiebreaker when two people land the same composite.</div></div></div>';
+  }
+
+  if(c.total>=90){
+    h+='<div class="panel" style="border-color:var(--amber)"><div class="ph"><span class="step">13</span><h3>Month thirteen</h3><span class="note">unlocked at 90</span></div><div class="pb">'+
+       '<div style="margin-bottom:10px">You scored high enough to see what happens next. December\'s order book was not demand — it was the trade pulling stock into the fiscal year. In January it reverses.</div>'+
+       '<table><thead><tr><th>January</th><th>Consumption</th><th>Sell-in</th><th>Ratio</th></tr></thead><tbody>'+
+       '<tr><td>Portfolio</td><td>~1,430</td><td class="bad">~1,050</td><td class="bad">0.73</td></tr>'+
+       '</tbody></table>'+
+       '<div class="foot">Every unit you built in December to chase that order book is now sitting in your network for a quarter. The best plan in the game is not the one that maximises December.</div></div></div>';
+  }
+
+  var code="IBP·"+(TEAM?TEAM.replace(/[^A-Za-z0-9 ]/g,"")+"·":"")+MODE.tier.toUpperCase()+"·"+c.total.toFixed(0)+
+    "·F"+(c.cfr*100).toFixed(1)+"·C"+(c.capture*100).toFixed(1)+"·D"+c.doh.toFixed(0)+"·M"+(c.mape*100).toFixed(1)+
+    "·T"+S.trust.toFixed(0)+"·A"+Math.round(S.cum.airCost)+(MODE.clock?"·"+mmss(S.totalMs):"")+"·s"+SEED;
+  h+='<div class="panel"><div class="ph"><span class="step">#</span><h3>Score code</h3><span class="note">paste this to compare runs</span></div><div class="pb">'+
+     '<div class="row"><input id="codebox" readonly value="'+code+'" style="flex:1;min-width:240px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:8px;border-radius:2px">'+
+     '<button id="copycode">Copy</button></div>'+
+     '<div class="foot">Composite · fill · capture · days on hand · MAPE · final standing · air spend'+(MODE.clock?" · time":"")+' · seed.</div></div></div>';
+  h+='<div class="row"><button class="primary" id="again">Run the year again</button><span class="dim">Same demand seed — a better score is a better plan, not better luck.</span></div>';
+  return h;
+}
+
+function attribution(c){
+  var real=S.history.filter(function(x){return !x.prior;}), out=[];
+  var lost={}, tot=0;
+  MARKETS.forEach(function(m){ lost[m.id]=0; });
+  real.forEach(function(h){ MARKETS.forEach(function(m){ lost[m.id]+=h.lostBy[m.id]; tot+=h.lostBy[m.id]; }); });
+
+  var pFill=30-c.parts.sFill;
+  if(pFill>0.4){
+    var worst=real.slice().sort(function(a,b){return a.cfr-b.cfr;}).slice(0,2).map(function(h){return h.month+" "+pct(h.cfr);});
+    var byReg=MARKETS.slice().sort(function(a,b){return lost[b.id]-lost[a.id];}).map(function(m){
+      return m.short+" "+fmt(lost[m.id])+"K ("+(tot?Math.round(lost[m.id]/tot*100):0)+"%)"; });
+    out.push({pts:pFill,head:"Service — units you could not ship",
+      detail:fmt(tot)+"K units of sell-in went unfilled. Concentration: "+byReg.join(" · ")+". Worst cycles: "+worst.join(", ")+".",
+      fix: lost.apac/(tot||1)>0.3 ? "APAC drove it. That lane is three months long by sea — the correction has to be committed before you can see the problem, or flown at ten times the rate once you can."
+         : "Build earlier in the cycle, or buy the month with overtime or air where the contribution justifies it."});
+  }
+  var pCap=25-c.parts.sCap;
+  if(pCap>0.4){
+    var comp=[["margin forfeited to stockouts",S.cum.lostGM],["overtime premium",S.cum.otCost],
+              ["air freight",S.cum.airCost],["obsolescence write-off",S.cum.waste],["carrying cost",S.cum.carry]]
+             .sort(function(a,b){return b[1]-a[1];});
+    out.push({pts:pCap,head:"Margin capture — value that left the P&L",
+      detail:comp.map(function(x){return x[0]+" "+money(x[1]);}).join(" · ")+".",
+      fix: S.cum.airCost>S.cum.lostGM ? "You spent more flying stock than the stockouts would have cost. Compare contribution per unit against the freight premium before you book."
+         : (S.cum.otCost>S.cum.lostGM ? "You bought more capacity than the service was worth. Overtime is a timing decision, not a standing policy."
+         : "The loss is stockouts, not cost. More cover, more capacity or a well-timed charter would have paid for itself.")});
+  }
+  var pInv=20-c.parts.sInv;
+  if(pInv>0.4){
+    var hi=c.doh>75;
+    out.push({pts:pInv,head:"Inventory position — "+(hi?"too much cover":"too little cover"),
+      detail:"Averaged "+c.doh.toFixed(0)+" days against a 75-day target, "+(hi?"+":"−")+Math.abs(c.doh-75).toFixed(0)+" days off.",
+      fix: hi?"Cut safety stock or stop building into a decelerating category.":"Raise safety stock. Below target you have no buffer for a lane you cannot correct."});
+  }
+  var pAcc=15-c.parts.sAcc;
+  if(pAcc>0.4){
+    out.push({pts:pAcc,head:"Forecast error — sell-in you did not see coming",
+      detail:"MAPE "+pct(c.mape)+" against a 20% par.",
+      fix:"Trade inventory moves ahead of consumption and always reverses. Read the WOS column, not the order."});
+  }
+  var pBias=10-c.parts.sBias;
+  if(pBias>0.4){
+    out.push({pts:pBias,head:"Bias — "+(c.bias>0?"you over-forecast all year":"you under-forecast all year"),
+      detail:"Cumulative bias "+signed(c.bias*100)+" against a ±8% band.",
+      fix:c.bias>0?"Persistent optimism carries a carrying-cost bill every month.":"Persistent caution is invisible until the lane you starved cannot recover."});
+  }
+  return out.sort(function(a,b){return b.pts-a.pts;});
+}
+
+function badges(c){
+  var f=S.flags, real=S.history.filter(function(x){return !x.prior;}), out=[];
+  if(f.otMonths===0) out.push(["Purist","Twelve cycles, not one hour of overtime."]);
+  if(f.flewNever)    out.push(["Never left the ground","Twelve cycles by sea and road. Not a single unit flown."]);
+  if(!f.usedAuto)    out.push(["By hand","Never once auto-filled from the baseline."]);
+  if(f.chtrMonths>0 && f.chtrMonths<=2 && c.capture>=0.91)
+                     out.push(["One good charter","Flew exactly when it paid and never again."]);
+  if(real.some(function(h){return h.cfr>=0.999 && h.otUnits===0 && h.airUnits===0 && h.doh>=55 && h.doh<=95;}))
+                     out.push(["Textbook","A cycle with everything shipped, nothing flown, no overtime, cover in band."]);
+  if(f.buzzer===0 && MODE.clock) out.push(["Never late","Every cycle committed before the clock ran out."]);
+  if(f.keptFaith)    out.push(["Read the fine print","Checked the source line before believing the number."]);
+  if(f.sawItComing)  out.push(["Three months early","Covered the APAC listing before it existed."]);
+  if(c.cfr>=0.98 && c.capture>=0.92) out.push(["Both sides","Service and margin, at the same time."]);
+  if(f.otMonths>0 && f.otMonths<=6 && c.capture>=0.93) out.push(["Surgical","Overtime only in the cycles that paid for it."]);
+  if(f.otMonths>=3 && f.otStreakMax<=2) out.push(["Let it cool","Used overtime repeatedly and never once let the line run hot two months in a row."]);
+  if(S.trustHist.some(function(t){return t<TRUST_WARN;}) && S.trust>=70)
+                     out.push(["Back from the brink","Went under formal warning and finished the year trusted."]);
+  return out;
+}
+
+function srow(label,val,target,delta,ok,pts,max){
+  return '<tr><td>'+label+'</td><td class="'+(ok?"good":"bad")+'">'+val+'</td><td class="dim">'+target+
+         '</td><td class="'+(ok?"good":"bad")+'">'+delta+'</td><td>'+pts.toFixed(1)+' / '+max+'</td></tr>';
+}
+
+/* ---------- wiring ---------- */
+function wire(){
+  document.querySelectorAll('[data-fc]').forEach(function(el){
+    el.addEventListener('input',function(){
+      var k=el.getAttribute('data-fc').split('|');
+      S.forecast[k[0]][k[1]]=Math.max(0,parseInt(el.value||"0",10));
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-prod]').forEach(function(el){
+    el.addEventListener('input',function(){
+      S.prod[el.getAttribute('data-prod')]=Math.max(0,parseInt(el.value||"0",10));
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-air]').forEach(function(el){
+    el.addEventListener('input',function(){
+      var k=el.getAttribute('data-air');
+      S.air[k].u=Math.max(0,parseInt(el.value||"0",10));
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-airtier]').forEach(function(el){
+    el.addEventListener('change',function(){
+      S.air[el.getAttribute('data-airtier')].tier=el.value;
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-pol]').forEach(function(el){
+    el.addEventListener('change',function(){ S.policy[el.getAttribute('data-pol')]=el.value; render(); });
+  });
+  document.querySelectorAll('[data-split]').forEach(function(el){
+    el.addEventListener('input',function(){
+      var k=el.getAttribute('data-split').split('|');
+      S.split[k[0]][k[1]]=Math.max(0,parseFloat(el.value||"0"));
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-hz]').forEach(function(el){
+    el.addEventListener('change',function(){
+      var b=el.getAttribute('data-hz'), v=parseFloat(el.value);
+      MARKETS.forEach(function(m){ S.hz[b][m.id]=v; });
+      refresh();
+    });
+  });
+  document.querySelectorAll('[data-wh]').forEach(function(el){
+    el.addEventListener('click',function(){
+      var id=el.getAttribute('data-wh');
+      S.drill = (S.drill===id) ? null : id;
+      render();
+    });
+  });
+  var ss=document.getElementById('ss');
+  if(ss) ss.addEventListener('input',function(){
+    S.ss=parseFloat(ss.value);
+    document.getElementById('sslbl').textContent=S.ss.toFixed(1)+' weeks of cover';
+    refresh();
+  });
+  var cb=document.getElementById('commit'); if(cb) cb.addEventListener('click',commit);
+  var ab=document.getElementById('auto');   if(ab) ab.addEventListener('click',autofill);
+  var rb=document.getElementById('restart');if(rb) rb.addEventListener('click',restart);
+
+  if(TICK) clearInterval(TICK);
+  TICK=setInterval(tick,250); tick();
+
+  if(!window.__enterBound){
+    window.__enterBound=true;
+    document.addEventListener('keydown',function(ev){
+      if(ev.key!=="Enter") return;
+      var b=document.getElementById('commit');
+      if(b && !b.disabled){ ev.preventDefault(); b.click(); }
+      else { var g=document.getElementById('begin'); if(g) g.click(); }
+    });
+  }
+  function launch(seed){
+    var tn=document.getElementById('teamname'); if(tn) TEAM=tn.value.trim();
+    SEED=seed; S=initialState(); S.introDismissed=true; S.started=true; S.t0=Date.now();
+    render(); window.scrollTo(0,0);
+  }
+  document.querySelectorAll('[data-mode]').forEach(function(el){
+    el.addEventListener('click',function(){ MODE=MODES[el.getAttribute('data-mode')]; S=initialState(); S.introDismissed=false; render(); });
+  });
+  var bg=document.getElementById('begin');
+  if(bg) bg.addEventListener('click',function(){ launch(SHARED_SEED); });
+  var bgr=document.getElementById('beginr');
+  if(bgr) bgr.addEventListener('click',function(){ launch(Math.floor(Math.random()*900000000)+100000000); });
+}
+
+function wireEnd(){
+  var ag=document.getElementById('again'); if(ag) ag.addEventListener('click',restart);
+  var cc=document.getElementById('copycode');
+  if(cc) cc.addEventListener('click',function(){
+    var box=document.getElementById('codebox');
+    box.select(); box.setSelectionRange(0,999);
+    try{ if(navigator.clipboard) navigator.clipboard.writeText(box.value); else document.execCommand('copy'); }catch(e){}
+    cc.textContent="Copied"; setTimeout(function(){cc.textContent="Copy";},1500);
+  });
+}
+
+if(LOCK) MODE=MODES[LOCK];
+S=initialState();
+render();
+</script>
+</body>
+</html>
