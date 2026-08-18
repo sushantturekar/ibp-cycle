@@ -133,6 +133,27 @@ button:focus-visible{outline:2px solid var(--supply);outline-offset:2px}
 /* ---------- ledger ---------- */
 .ledger td,.ledger th{font-size:11px;padding:4px 5px}
 .ledger .tot td{border-top:1px solid var(--line);font-weight:600}
+
+/* ---------- narrow-screen notice ----------
+   Most inbound traffic arrives from a phone, inside another app's browser.
+   The game runs there; it is just cramped. Say so once, let it be dismissed,
+   and never show it on a screen wide enough to hold the map.               */
+.mobnote{display:none}
+@media(max-width:860px){
+  .mobnote{
+    display:flex;gap:10px;align-items:flex-start;
+    background:#16222F;border:1px solid var(--amber);border-left-width:3px;
+    border-radius:3px;padding:11px 12px;margin-bottom:14px;
+    font-size:12.5px;line-height:1.45;color:var(--ink)
+  }
+  .mobnote strong{color:var(--amber);display:block;margin-bottom:3px;font-family:'Archivo',sans-serif;font-size:12.5px}
+  .mobnote .x{
+    flex:none;background:transparent;border:0;color:var(--dim);
+    font-size:19px;line-height:1;padding:0 2px;cursor:pointer;
+    text-transform:none;letter-spacing:0
+  }
+  .mobnote .x:hover{color:var(--ink);border:0}
+}
 </style>
 </head>
 <body>
@@ -143,6 +164,14 @@ button:focus-visible{outline:2px solid var(--supply);outline-offset:2px}
   <p style="color:#7D8FA1">This file is an interactive simulator. It needs a real browser to run.</p>
 </div>
 </noscript>
+<div class="wrap">
+  <div class="mobnote" id="mobilenote">
+    <div><strong>This is built for a desktop screen.</strong>
+    It will run here, but the planning tables and the supply network map are wide — expect to scroll sideways.
+    Open it on a laptop when you want the real thing.</div>
+    <button class="x" id="mobclose" aria-label="Dismiss this notice" title="Dismiss">&times;</button>
+  </div>
+</div>
 <div class="wrap" id="app"></div>
 
 <script>
@@ -403,7 +432,8 @@ function initialState(){
     forecast:null, prod:{pain:0,sleep:0,gut:0}, air:air,
     policy:{pain:"fair",sleep:"fair",gut:"fair"}, ss:MODE.ss0,
     cum:{demand:0,shipped:0,rev:0,cogs:0,carry:0,waste:0,absErr:0,err:0,potRev:0,potCogs:0,potFreight:0,
-         dohSum:0,dohN:0,otCost:0,lostGM:0,seaCost:0,airCost:0,airUnits:0,chtrUnits:0}
+         dohSum:0,dohN:0,otCost:0,lostGM:0,seaCost:0,airCost:0,airUnits:0,chtrUnits:0,
+         airPrem:0,chtrCost:0,airSavedUnits:0,airSavedGM:0,lostPM:zeroPM(0),lostGMPM:zeroPM(0)}
   };
 }
 
@@ -413,14 +443,21 @@ function runCycle(){
 
   st.prevPipe = st.pipeline.map(function(x){ return {arrive:x.arrive,p:x.p,m:x.m,q:x.q,lt:x.lt,mode:x.mode}; });
 
-  st.pipeline.filter(function(x){return x.arrive===r;}).forEach(function(x){ inv[x.p][x.m]+=x.q; });
+  /* airIn tracks units that reached the shelf THIS cycle only because they flew —
+     standard air landing early, plus charter landing inside the cycle. It is the
+     basis for the counterfactual: what would have shipped without them.        */
+  var airIn=zeroPM(0);
+  st.pipeline.filter(function(x){return x.arrive===r;}).forEach(function(x){
+    inv[x.p][x.m]+=x.q;
+    if(x.mode==="air") airIn[x.p][x.m]+=x.q;
+  });
   var pipeline = st.pipeline.filter(function(x){return x.arrive>r;});
 
   var alloc = allocate(r, prod, forecast, ss, policy, inv, pipeline, st.history, st.hz, st.split);
   var heldUnits = alloc.held;
 
   /* ---- freight: split each lot into ocean / air / charter ---- */
-  var seaCost=0, airCost=0, airUnits=0, chtrUnits=0, airLanes=[];
+  var seaCost=0, airCost=0, airPrem=0, chtrCost=0, airUnits=0, chtrUnits=0, airLanes=[];
   alloc.lots.forEach(function(x){
     var key=x.p+"|"+x.m, a=st.air[key]||{u:0,tier:"air"};
     var lt=leadTime(r,x.m);
@@ -428,28 +465,39 @@ function runCycle(){
     var seaU=x.q-flyU;
     if(seaU>0) pipeline.push({arrive:r+lt,p:x.p,m:x.m,q:seaU,lt:lt,mode:"sea"});
     if(flyU>0){
+      var seaEq=freightCost(flyU,x.m,"sea");
       if(a.tier==="chtr"){
         inv[x.p][x.m]+=flyU;                       /* lands inside the cycle */
-        airCost += freightCost(flyU,x.m,"chtr"); chtrUnits+=flyU;
+        airIn[x.p][x.m]+=flyU;
+        var cc=freightCost(flyU,x.m,"chtr");
+        airCost+=cc; chtrCost+=cc; chtrUnits+=flyU; airPrem+=cc-seaEq;
       } else {
         pipeline.push({arrive:r+1,p:x.p,m:x.m,q:flyU,lt:1,mode:"air"});
-        airCost += freightCost(flyU,x.m,"air");
+        var ac=freightCost(flyU,x.m,"air");
+        airCost+=ac; airPrem+=ac-seaEq;
       }
       airUnits+=flyU; airLanes.push({p:x.p,m:x.m,q:flyU,tier:a.tier});
     }
     seaCost += freightCost(seaU,x.m,"sea");
   });
 
-  var lostGM=0;
+  var lostGM=0, airSavedUnits=0, airSavedGM=0;
   var demand=zeroPM(), shipped=zeroPM(), offt=zeroPM(), wos=zeroPM(), lostBy={}, rev=0, cogs=0,
+      lostPM=zeroPM(0), lostGMPM=zeroPM(0),
       dTot=0, sTot=0, absErr=0, err=0, potRev=0, potCogs=0, potFreight=0;
   MARKETS.forEach(function(m){ lostBy[m.id]=0; });
   var trade=clone(st.trade);
   PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
     var si=sellIn(r,p.id,m.id,trade[p.id][m.id]);
     var d=si.d, s=Math.min(inv[p.id][m.id],d);
+    var contrib=p.price*m.mult - p.cogs - FREIGHT[m.id];
+    /* counterfactual — strip out what flew and see what would have shipped */
+    var sWo=Math.min(Math.max(0,inv[p.id][m.id]-airIn[p.id][m.id]), d);
+    var saved=Math.max(0, s-sWo);
+    airSavedUnits+=saved; airSavedGM+=saved*contrib;
     demand[p.id][m.id]=d; shipped[p.id][m.id]=s; offt[p.id][m.id]=si.c; inv[p.id][m.id]-=s;
-    lostBy[m.id]+=(d-s); lostGM += (d-s)*(p.price*m.mult - p.cogs - FREIGHT[m.id]);
+    lostPM[p.id][m.id]=(d-s); lostGMPM[p.id][m.id]=(d-s)*contrib;
+    lostBy[m.id]+=(d-s); lostGM += (d-s)*contrib;
     trade[p.id][m.id]=Math.max(0, trade[p.id][m.id]+s-si.c);
     wos[p.id][m.id]= si.c>0 ? trade[p.id][m.id]/(si.c/4.33) : 0;
     rev += s*p.price*m.mult;
@@ -491,6 +539,8 @@ function runCycle(){
     otPrem:otPrem, otStreak:st.flags.otStreak, bias:(dTot>0?err/dTot:0), avgWos:avgWOS(wos),
     lostGM:lostGM, capUsed:stdUsed, cap:baseCap,
     seaCost:seaCost, airCost:airCost, freight:freight, airUnits:airUnits, chtrUnits:chtrUnits,
+    airPrem:airPrem, chtrCost:chtrCost, airSavedUnits:airSavedUnits, airSavedGM:airSavedGM,
+    lostPM:lostPM, lostGMPM:lostGMPM,
     airLanes:airLanes, potGM:potGM
   };
   st.history.push(row);
@@ -500,9 +550,15 @@ function runCycle(){
   c.absErr+=absErr; c.err+=err; c.potRev+=potRev; c.potCogs+=potCogs; c.potFreight+=potFreight;
   c.dohSum+=doh; c.dohN+=1; c.otCost+=otCost; c.lostGM+=lostGM;
   c.seaCost+=seaCost; c.airCost+=airCost; c.airUnits+=airUnits; c.chtrUnits+=chtrUnits;
+  c.airPrem+=airPrem; c.chtrCost+=chtrCost; c.airSavedUnits+=airSavedUnits; c.airSavedGM+=airSavedGM;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+    c.lostPM[p.id][m.id]+=lostPM[p.id][m.id];
+    c.lostGMPM[p.id][m.id]+=lostGMPM[p.id][m.id];
+  });});
 
   if(otUnits>0){ st.flags.otMonths++; st.flags.otStreak++; if(st.flags.otStreak>st.flags.otStreakMax) st.flags.otStreakMax=st.flags.otStreak; }
   else st.flags.otStreak=0;
+  row.otStreak=st.flags.otStreak;   /* now reads "this is the Nth consecutive month" */
   if(airUnits>0){ st.flags.airMonths++; st.flags.flewNever=false; }
   if(chtrUnits>0) st.flags.chtrMonths++;
   if(airUnits>0 && row.cfr>=0.97) st.flags.savedByAir++;
@@ -542,15 +598,16 @@ function runCycle(){
 function trustGrade(h){
   var cap = h.potGM>0 ? h.gm/h.potGM : 1;
   var burn = (h.otCost+h.airCost)/(h.rev||1);
-  /* Past 3% of revenue, overtime and air stop merely scoring zero and start
-     costing you. Without this the caps bound total burn low enough that no
-     amount of rescue spending can ever get you managed out — which would make
-     the escape valve free, and it is not supposed to be. */
-  var penalty = Math.min(30, Math.max(0, burn-0.030)*1100);
+  /* Capacity on this network genuinely cannot serve peak demand without overtime,
+     so cost discipline must not be so heavy that using the tool the game requires
+     ends the run. The composite already prices overtime through margin capture;
+     trust only needs to catch the extreme. Full marks below 2% of revenue, zero
+     by 5.5%, and the penalty is reserved for a line that never cools at all. */
+  var penalty = Math.min(22, Math.max(0,burn-0.055)*1200 + Math.max(0,(h.otStreak||0)-7)*6);
   return cl01((h.cfr-0.90)/0.09)*38
-       + cl01((cap-0.80)/0.16)*28
+       + cl01((cap-0.80)/0.16)*32
        + cl01(1-Math.abs(h.doh-75)/55)*16
-       + cl01(1-burn/0.030)*18
+       + cl01((0.055-burn)/0.035)*14
        - penalty;
 }
 function trustBand(t){
@@ -1693,6 +1750,9 @@ function renderFired(){
      '<div>'+esc(f.lesson)+'</div></div>';
   h+='<div class="foot">Three ways to lose this job exist. You found '+(f.rare?'the one most players never see.':'this one.')+'</div></div></div>';
 
+  h+=serviceMatrix();
+  h+=freightROI();
+
   h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
 
   h+='<div class="row"><button class="primary" id="again">Run the year again</button>'+
@@ -1773,6 +1833,9 @@ function renderEnd(){
     bg.forEach(function(x){ h+='<tr><td style="width:190px"><span class="brand good">'+x[0]+'</span></td><td style="text-align:left" class="dim">'+x[1]+'</td></tr>'; });
     h+='</tbody></table><div class="foot">Unscored. Eleven exist; you found '+bg.length+'.</div></div></div>';
   }
+
+  h+=serviceMatrix();
+  h+=freightROI();
 
   h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
 
@@ -1898,6 +1961,108 @@ function badges(c){
   return out;
 }
 
+/* ---------- where the service actually went ----------
+   Fill by region alone never answers "why did I miss in December" — the loss is
+   a brand in a lane in a month, and a thousand cases of DigestEase in APAC is
+   nothing like a thousand cases of ReliefMax.                                 */
+function serviceMatrix(){
+  var c=S.cum, tot=0;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ tot+=c.lostPM[p.id][m.id]; }); });
+  var h='<div class="panel"><div class="ph"><span class="step">⊘</span><h3>Where the service went</h3>'+
+        '<span class="note">unfilled sell-in by brand and lane</span></div><div class="pb">';
+  if(tot<=0){
+    h+='<div class="good" style="padding:12px 0">Nothing went unfilled all year. There is no breakdown to show.</div></div></div>';
+    return h;
+  }
+  h+='<table><thead><tr><th>Brand</th>'+MARKETS.map(function(m){return '<th>'+m.short+'</th>';}).join('')+
+     '<th>Units</th><th>Margin forfeited</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    var rt=0, rg=0;
+    MARKETS.forEach(function(m){ rt+=c.lostPM[p.id][m.id]; rg+=c.lostGMPM[p.id][m.id]; });
+    h+='<tr><td><span class="brand">'+p.name+'</span></td>'+
+      MARKETS.map(function(m){
+        var v=c.lostPM[p.id][m.id];
+        return '<td class="'+(v>0?"bad":"dim")+'">'+(v>0?fmt(v):"—")+'</td>';
+      }).join('')+
+      '<td>'+fmt(rt)+'</td><td class="'+(rg>0?"bad":"dim")+'">'+money(rg)+'</td></tr>';
+  });
+  h+='<tr class="tot"><td>All brands</td>'+MARKETS.map(function(m){
+      var v=0; PRODUCTS.forEach(function(p){ v+=c.lostPM[p.id][m.id]; });
+      return '<td class="'+(v>0?"bad":"dim")+'">'+(v>0?fmt(v):"—")+'</td>';
+    }).join('')+'<td>'+fmt(tot)+'</td><td class="bad">'+money(c.lostGM)+'</td></tr>';
+  h+='</tbody></table>';
+
+  var worst=[];
+  S.history.filter(function(x){return !x.prior;}).forEach(function(x){
+    if(!x.lostPM) return;
+    PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
+      var v=x.lostPM[p.id][m.id];
+      if(v>0) worst.push({mo:x.month,p:p.name,rg:m.short,v:v,g:x.lostGMPM[p.id][m.id]});
+    });});
+  });
+  worst.sort(function(a,b){return b.g-a.g;});
+  if(worst.length){
+    h+='<table style="margin-top:12px"><thead><tr><th>Single worst misses</th><th>Cycle</th><th>Units</th><th>Margin</th></tr></thead><tbody>';
+    worst.slice(0,6).forEach(function(w){
+      h+='<tr><td><span class="brand">'+w.p+'</span> <span class="sub">'+w.rg+'</span></td>'+
+         '<td class="dim">'+w.mo+'</td><td class="bad">'+fmt(w.v)+'</td><td class="bad">'+money(w.g)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='<div class="foot">Ranked by margin, not units. Contribution per unit runs from about $0.42 on ReliefMax into APAC to $2.86 on DigestEase — the same shortfall is not the same loss.</div></div></div>';
+  return h;
+}
+
+/* ---------- did the freight actually pay? ----------
+   Counterfactual, cycle by cycle: strip the flown units out of inventory at fill
+   time and see what would not have shipped. Everything else is just spend.     */
+function freightROI(){
+  var c=S.cum;
+  var h='<div class="panel" style="border-color:'+(c.airUnits>0?"var(--air)":"var(--line)")+'">'+
+        '<div class="ph"><span class="step">✈</span><h3>Did the freight pay?</h3>'+
+        '<span class="note">air premium against margin rescued</span></div><div class="pb">';
+  if(c.airUnits<=0){
+    h+='<div class="dim" style="padding:12px 0">Nothing flew this year. Every unit moved on its normal lane at the baseline rate — '+money(c.seaCost)+' of ocean and road freight in total.</div>'+
+       '<div class="foot">No premium spent means none wasted. It also means any month you went short, you went short by choice.</div></div></div>';
+    return h;
+  }
+  var conv = c.airUnits>0 ? c.airSavedUnits/c.airUnits : 0;
+  var roi  = c.airPrem>0 ? c.airSavedGM/c.airPrem : 0;
+  var net  = c.airSavedGM - c.airPrem;
+  var verdict;
+  if(roi>=2)      verdict="Every dollar of premium came back more than twice over. This is what the freight desk is for.";
+  else if(roi>=1) verdict="It paid, but not by much. The margin rescued covered the premium and left "+money(net)+".";
+  else if(roi>0)  verdict="It did not pay. You spent "+money(c.airPrem)+" in premium to rescue "+money(c.airSavedGM)+" of margin — a net loss of "+money(Math.abs(net))+".";
+  else            verdict="None of it converted. Every unit you flew would have shipped anyway, or landed somewhere that was not short. That is "+money(c.airPrem)+" of premium for nothing.";
+  h+='<table><tbody>'+
+    '<tr><td>Units flown</td><td class="warn">'+fmt(c.airUnits)+'K</td><td>of which chartered</td><td class="'+(c.chtrUnits>0?"bad":"dim")+'">'+fmt(c.chtrUnits)+'K</td></tr>'+
+    '<tr><td>Total air freight</td><td class="warn">'+money(c.airCost)+'</td><td>of which charter</td><td class="'+(c.chtrCost>0?"bad":"dim")+'">'+money(c.chtrCost)+'</td></tr>'+
+    '<tr><td><strong>Premium over ocean</strong></td><td class="bad">'+money(c.airPrem)+'</td><td class="sub" colspan="2" style="text-align:left">the part that was a decision, not a cost of doing business</td></tr>'+
+    '<tr><td>Units that shipped <em>only</em> because they flew</td><td class="'+(c.airSavedUnits>0?"good":"bad")+'">'+fmt(c.airSavedUnits)+'K</td>'+
+      '<td>Conversion</td><td class="'+(conv>=0.5?"good":(conv>=0.2?"warn":"bad"))+'">'+pct(conv)+'</td></tr>'+
+    '<tr><td>Margin rescued</td><td class="good">'+money(c.airSavedGM)+'</td>'+
+      '<td>Return on premium</td><td class="'+(roi>=1?"good":"bad")+'">'+roi.toFixed(2)+'×</td></tr>'+
+    '<tr><td><strong>Net</strong></td><td class="'+(net>=0?"good":"bad")+'">'+(net>=0?"+":"−")+money(Math.abs(net)).replace("$","$")+'</td>'+
+      '<td class="sub" colspan="2" style="text-align:left">margin rescued less the premium you paid for it</td></tr>'+
+    '</tbody></table>';
+  h+='<div class="sig '+(roi>=1?"cold":"hot")+'" style="display:block;margin-top:10px"><span class="tag" style="width:auto;display:block;margin-bottom:4px">Verdict</span><div>'+esc(verdict)+'</div></div>';
+  var flew=S.history.filter(function(x){return !x.prior && x.airUnits>0;});
+  if(flew.length){
+    h+='<table style="margin-top:12px"><thead><tr><th>Cycle</th><th>Flown</th><th>Chartered</th><th>Premium</th><th>Converted</th><th>Margin rescued</th></tr></thead><tbody>';
+    flew.forEach(function(x){
+      var cv=x.airUnits>0?x.airSavedUnits/x.airUnits:0;
+      h+='<tr><td class="brand">'+x.month+'</td><td class="warn">'+fmt(x.airUnits)+'K</td>'+
+        '<td class="'+(x.chtrUnits>0?"bad":"dim")+'">'+(x.chtrUnits>0?fmt(x.chtrUnits)+"K":"—")+'</td>'+
+        '<td class="bad">'+money(x.airPrem)+'</td>'+
+        '<td class="'+(cv>=0.5?"good":(cv>=0.2?"warn":"bad"))+'">'+pct(cv)+'</td>'+
+        '<td class="'+(x.airSavedGM>0?"good":"dim")+'">'+money(x.airSavedGM)+'</td></tr>';
+    });
+    h+='</tbody></table>';
+  }
+  h+='<div class="foot">Conversion is measured against the counterfactual: at fill time the flown units are removed from inventory and the cycle is re-checked. Anything that would have shipped regardless does not count. Units flown into a lane that was never short convert at zero.</div></div></div>';
+  return h;
+}
+
 function srow(label,val,target,delta,ok,pts,max){
   return '<tr><td>'+label+'</td><td class="'+(ok?"good":"bad")+'">'+val+'</td><td class="dim">'+target+
          '</td><td class="'+(ok?"good":"bad")+'">'+delta+'</td><td>'+pts.toFixed(1)+' / '+max+'</td></tr>';
@@ -2001,6 +2166,15 @@ function wireEnd(){
     cc.textContent="Copied"; setTimeout(function(){cc.textContent="Copy";},1500);
   });
 }
+
+/* the narrow-screen notice lives outside #app, so render() never clears it */
+(function(){
+  var x=document.getElementById('mobclose');
+  if(x) x.addEventListener('click',function(){
+    var n=document.getElementById('mobilenote');
+    if(n) n.style.display='none';
+  });
+})();
 
 if(LOCK) MODE=MODES[LOCK];
 S=initialState();
