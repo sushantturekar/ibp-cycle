@@ -42,6 +42,11 @@
 <meta name="twitter:description" content="Twelve monthly planning cycles across three brands and three supply regions. Scored on service, margin, forecast accuracy and inventory.">
 <meta name="twitter:image" content="https://sushantturekar.github.io/ibp-cycle/preview.png">
 <link rel="canonical" href="https://sushantturekar.github.io/ibp-cycle/">
+
+<!-- Usage counts. No cookies, no personal data, no cross-site tracking.
+     async so a blocked, slow or unreachable script never delays the game. -->
+<script data-goatcounter="https://ibp-cycle.goatcounter.com/count"
+        async src="//gc.zgo.at/count.js"></script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230d1117'/><text y='.9em' x='50%25' text-anchor='middle' font-size='38' font-family='Georgia,serif' fill='%235eead4'>IBP</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -449,6 +454,25 @@ function avgWOS(wos){
 }
 /* Vos remembers how many times she has raised a subject, so a recurring problem
    escalates instead of looping the same sentence. Each call advances the topic. */
+/* ---------- usage counts ----------
+   Answers one question: how far do people actually get? Landed, started, cleared
+   Q1, reached H2, finished, or got terminated. Nothing else is sent — never the
+   player name, never a raw score, never anything that identifies a run or a
+   person. Wrapped so a blocked script, an ad blocker, an offline visitor or an
+   unreachable endpoint can never break or delay the game.                     */
+function track(path){
+  try{
+    if(window.goatcounter && typeof window.goatcounter.count === "function"){
+      window.goatcounter.count({path:path, event:true});
+    }
+  }catch(e){}
+}
+/* buckets to the decade so the dashboard shows a distribution, not 100 rows */
+function scoreBucket(t){
+  var b=Math.max(0,Math.min(9,Math.floor((t||0)/10)));
+  return (b*10)+"s";
+}
+
 /* deterministic rotation for lines that recur without escalating */
 function pick(set,r){ return set[((r%set.length)+set.length)%set.length]; }
 function said(st,key,set){
@@ -502,7 +526,7 @@ function initialState(){
     done:false, fired:false, firedRound:0, introDismissed:false,
     t0:Date.now(), totalMs:0, cycleMs:[], started:false, locking:false,
     notesHidden:false, drill:null,
-    trust:TRUST_START, trustHist:[TRUST_START], bossLine:null, warned:false, said:{},
+    trust:TRUST_START, trustHist:[TRUST_START], bossLine:null, warned:false, said:{}, tracked:{},
     reviewsShown:{}, prevPipe:[],
     flags:{usedAuto:false, buzzer:0, otMonths:0, otStreak:0, otStreakMax:0, airMonths:0, chtrMonths:0,
            sawItComing:false, keptFaith:false, flewNever:true, savedByAir:0},
@@ -1280,7 +1304,12 @@ function autofill(){
 function commit(){
   var e=Math.min(Date.now()-S.t0, limitFor(S.round)||9e9);
   S.totalMs+=e; S.cycleMs.push(e);
-  runCycle(); S.t0=Date.now(); S.locking=false; render(true);
+  runCycle();
+  if(S.round===4  && !S.tracked.q2)  { S.tracked.q2=1;  track('reached/q2'); }
+  if(S.round===7  && !S.tracked.h2)  { S.tracked.h2=1;  track('reached/h2'); }
+  if(S.fired      && !S.tracked.end) { S.tracked.end=1; track('fired/'+firingFlavor().key); }
+  else if(S.done  && !S.tracked.end) { S.tracked.end=1; track('complete/'+scoreBucket(scorecard(S.cum).total)); }
+  S.t0=Date.now(); S.locking=false; render(true);
 }
 function restart(){ var d=S&&S.introDismissed; S=initialState(); S.introDismissed=!!d; S.started=!!d; S.t0=Date.now(); render(); }
 
@@ -1679,7 +1708,8 @@ function renderIntro(){
     '<input id="teamname" type="text" maxlength="28" value="'+esc(TEAM||"")+'" placeholder="optional" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:6px 8px;border-radius:2px;width:180px"></label></div>'+
   '<div class="row" style="margin-top:10px"><button class="primary" id="begin">Start — shared seed</button><button id="beginr">Start — random seed</button></div>'+
   '<div class="dim" style="margin-top:8px;font-size:11.5px">The shared seed gives everyone the same twelve months, so scores are comparable. A random seed gives a fresh year for practice.</div>'+
-  '<div class="foot">Designed by <a href="https://www.linkedin.com/in/sushantturekar/" target="_blank" rel="noopener noreferrer" style="color:var(--dim);text-decoration:underline;text-underline-offset:2px">Sushant Turekar</a> · © 2026 · Illustrative CPG economics. No company data is used anywhere in this model.</div></div></div>';
+  '<div class="foot">Designed by <a href="https://www.linkedin.com/in/sushantturekar/" target="_blank" rel="noopener noreferrer" style="color:var(--dim);text-decoration:underline;text-underline-offset:2px">Sushant Turekar</a> · © 2026 · Illustrative CPG economics. No company data is used anywhere in this model.<br>'+
+  'Anonymous, cookie-free usage counts only — how many people start and finish a year. No personal data, no cross-site tracking, nothing you type is ever sent.</div></div></div>';
   return h;
 }
 
@@ -2312,6 +2342,7 @@ function wire(){
   function launch(seed){
     var tn=document.getElementById('teamname'); if(tn) TEAM=tn.value.trim();
     SEED=seed; S=initialState(); S.introDismissed=true; S.started=true; S.t0=Date.now();
+    track('start/'+MODE.key);   /* mode only — the player name is never sent */
     render(); window.scrollTo(0,0);
   }
   document.querySelectorAll('[data-mode]').forEach(function(el){
