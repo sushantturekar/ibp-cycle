@@ -24,9 +24,25 @@
 <meta charset="utf-8" />
 <meta name="author" content="Sushant Turekar">
 <meta name="copyright" content="© 2026 Sushant Turekar">
-<meta name="description" content="The IBP Cycle, Gamified Edition — an integrated business planning simulator. Designed by Sushant Turekar.">
+<meta name="description" content="The IBP Cycle — an integrated business planning simulator. Twelve monthly cycles across three brands and three supply regions, scored on service, margin, forecast accuracy and inventory. Designed by Sushant Turekar.">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>The IBP Cycle — Gamified Edition | Sushant Turekar</title>
+<title>The IBP Cycle — an IBP simulator | Sushant Turekar</title>
+
+<!-- Social preview -->
+<meta property="og:title" content="The IBP Cycle — an integrated business planning simulator">
+<meta property="og:description" content="Twelve monthly planning cycles. Three brands, three supply regions, one binding capacity ceiling. Scored on service, margin, forecast accuracy and inventory.">
+<meta property="og:image" content="https://sushantturekar.github.io/ibp-cycle/preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://sushantturekar.github.io/ibp-cycle/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="The IBP Cycle">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The IBP Cycle — an integrated business planning simulator">
+<meta name="twitter:description" content="Twelve monthly planning cycles across three brands and three supply regions. Scored on service, margin, forecast accuracy and inventory.">
+<meta name="twitter:image" content="https://sushantturekar.github.io/ibp-cycle/preview.png">
+<link rel="canonical" href="https://sushantturekar.github.io/ibp-cycle/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230d1117'/><text y='.9em' x='50%25' text-anchor='middle' font-size='38' font-family='Georgia,serif' fill='%235eead4'>IBP</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -134,6 +150,17 @@ button:focus-visible{outline:2px solid var(--supply);outline-offset:2px}
 .ledger td,.ledger th{font-size:11px;padding:4px 5px}
 .ledger .tot td{border-top:1px solid var(--line);font-weight:600}
 
+/* ---------- collapsible full rules ----------
+   Native <details>, so the intro collapses with no script and no library. */
+details.rules{border:1px solid var(--line);border-radius:2px;background:var(--panel2);margin:12px 0}
+details.rules>summary{cursor:pointer;padding:9px 12px;font-family:'IBM Plex Mono',monospace;
+  font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);list-style:none}
+details.rules>summary::-webkit-details-marker{display:none}
+details.rules>summary:before{content:'▸ ';color:var(--dimmer)}
+details.rules[open]>summary:before{content:'▾ '}
+details.rules>summary:hover{color:var(--ink)}
+details.rules .rb{padding:0 12px 12px}
+
 /* ---------- narrow-screen notice ----------
    Most inbound traffic arrives from a phone, inside another app's browser.
    The game runs there; it is just cramped. Say so once, let it be dismissed,
@@ -237,7 +264,7 @@ function freightCost(units,m,mode){ return units*freightRate(m,mode); }
 /* __IBP_ATTRIBUTION__ build integrity block — do not remove */
 var __IBP_ATTRIBUTION__ = "U3VzaGFudCBUdXJla2FyfDIwMjYtMDgtMDh8VGhlIElCUCBDeWNsZXxvcmlnaW5hbCBkZXNpZ24=";
 var __IBP_FP__ = "g1-aircharter-trust";
-try{ console.log("%cThe IBP Cycle — Gamified", "font:700 15px sans-serif;color:#3EB4C4",
+try{ console.log("%cThe IBP Cycle", "font:700 15px sans-serif;color:#3EB4C4",
   "\n  Designed by Sushant Turekar\n  © 2026 Sushant Turekar. All rights reserved."); }catch(e){}
 
 var SEED = 20260805, SHARED_SEED = 20260805, TRADE_WOS = 4;
@@ -429,7 +456,7 @@ function initialState(){
     reviewsShown:{}, prevPipe:[],
     flags:{usedAuto:false, buzzer:0, otMonths:0, otStreak:0, otStreakMax:0, airMonths:0, chtrMonths:0,
            sawItComing:false, keptFaith:false, flewNever:true, savedByAir:0},
-    forecast:null, prod:{pain:0,sleep:0,gut:0}, air:air,
+    forecast:null, prod:{pain:0,sleep:0,gut:0}, air:air, prefilled:false,
     policy:{pain:"fair",sleep:"fair",gut:"fair"}, ss:MODE.ss0,
     cum:{demand:0,shipped:0,rev:0,cogs:0,carry:0,waste:0,absErr:0,err:0,potRev:0,potCogs:0,potFreight:0,
          dohSum:0,dohN:0,otCost:0,lostGM:0,seaCost:0,airCost:0,airUnits:0,chtrUnits:0,
@@ -1292,6 +1319,17 @@ function render(animate){
       S.forecast[p.id][m.id]=statBaseline(r,p.id,m.id,S.history);
     });});
   }
+  /* Sandbox opens with a workable plan already on the board, so a first-time
+     visitor can press commit and watch a cycle resolve without reading anything.
+     January only — after that the Auto-fill button is theirs to use.          */
+  if(MODE.key==="sandbox" && r===1 && !S.prefilled){
+    S.prefilled=true;
+    var pf=derived(), np0={};
+    PRODUCTS.forEach(function(p){ np0[p.id]=pf.rows[p.id].need; });
+    var u0=0; PRODUCTS.forEach(function(p){ u0+=np0[p.id]*p.cap; });
+    if(u0>pf.capBase){ var k0=pf.capBase/u0; PRODUCTS.forEach(function(p){ np0[p.id]=Math.round(np0[p.id]*k0); }); }
+    S.prod=np0;
+  }
   var real=S.history.filter(function(x){return !x.prior;});
   var lag=S.history[S.history.length-MODE.lag];
   var d=derived(), last=S.history[S.history.length-1], lastReal=real[real.length-1], run=real.length?scorecard(S.cum):null;
@@ -1537,17 +1575,25 @@ function renderIntro(){
   '<p style="margin:0 0 12px">You report to <strong>'+esc(BOSS.name)+'</strong>, '+esc(BOSS.title)+'. She reacts to every cycle you close, and her standing in you moves with your last few months, not your whole year. Let it fall below '+TRUST_FIRE+' and the run ends there. <strong>Nothing is fatal before the end of Q1</strong> — the first three cycles are yours to learn in.</p>'+
   '<table><thead><tr><th>The four stages</th><th>What you decide</th></tr></thead><tbody>'+
   '<tr><td><span class="brand">1 · Demand review</span></td><td style="text-align:left">Set the consensus forecast. The statistical baseline reads history, not the news — the signals above it are yours to price in. Not all of them are true.</td></tr>'+
-  '<tr><td><span class="brand">2 · Supply review</span></td><td style="text-align:left">Set the build plan against a shared, binding plant capacity. Overtime is available at +'+Math.round(OT_PREMIUM*100)+'% COGS — but the rate climbs '+Math.round(OT_STREAK_STEP*100)+' points for every consecutive month you run it, to +'+Math.round(otPremiumFor(OT_STREAK_MAX)*100)+'%. One clean month resets it. Overtime is a tactic; it is not a plan.</td></tr>'+
-  '<tr><td><span class="brand">✈ · Freight desk</span></td><td style="text-align:left">Decide how each lane moves. Ocean is the baseline. Air lands next cycle at four times the rate. Emergency charter lands <em>inside this cycle</em> at ten times the rate — and it is the only thing in the game that beats a lead time.</td></tr>'+
+  '<tr><td><span class="brand">2 · Supply review</span></td><td style="text-align:left">Set the build plan against a shared, binding plant capacity. Overtime is available at a premium that climbs the longer you lean on it. It is a tactic, not a plan.</td></tr>'+
+  '<tr><td><span class="brand">✈ · Freight desk</span></td><td style="text-align:left">Decide how each lane moves — ocean, air, or a same-cycle emergency charter. Speed is the only thing that beats a lead time, and it is priced accordingly.</td></tr>'+
   '<tr><td><span class="brand">3 · Reconciliation</span></td><td style="text-align:left">Set safety-stock cover and decide which region goes short when supply cannot cover everyone.</td></tr>'+
   '<tr><td><span class="brand">4 · Management review</span></td><td style="text-align:left">Commit. The plan locks, demand realises, and the P&amp;L lands.</td></tr>'+
   '</tbody></table>'+
-  '<p style="margin:12px 0 8px"><strong>The constraint everything follows from:</strong> what you build today does not help today — unless you pay ten times the freight rate to make it. That escape hatch is capped at '+fmt(AIR_POOL)+'K units a cycle, and it can only move units you already built.</p>'+
+  '<details class="rules"><summary>Full rules — lead times, freight, scoring</summary><div class="rb">'+
+  '<p style="margin:4px 0 8px"><strong>The constraint everything follows from:</strong> what you build today does not help today — unless you pay ten times the freight rate to make it. That escape hatch is capped at '+fmt(AIR_POOL)+'K units a cycle, and it can only move units you already built.</p>'+
   '<table><thead><tr><th>Region</th><th>Sea lead time</th><th>Price realisation</th><th>Sea freight</th></tr></thead><tbody>'+
   MARKETS.map(function(m){return '<tr><td>'+m.name+'</td><td>'+m.lt+' month'+(m.lt>1?'s':'')+'</td><td>'+(m.mult*100).toFixed(0)+'%</td><td>$'+FREIGHT[m.id].toFixed(2)+'/K</td></tr>';}).join('')+
   '</tbody></table>'+
+  '<table style="margin-top:10px"><thead><tr><th>Freight mode</th><th>Lands</th><th>Rate</th></tr></thead><tbody>'+
+  '<tr><td>Ocean / road</td><td>full lane lead time</td><td>baseline</td></tr>'+
+  '<tr><td>Air</td><td>next cycle</td><td>'+AIR_STD+'×</td></tr>'+
+  '<tr><td>Emergency charter</td><td>this cycle</td><td>'+AIR_CHTR+'×</td></tr>'+
+  '</tbody></table>'+
+  '<p style="margin:12px 0 8px"><strong>Overtime</strong> starts at +'+Math.round(OT_PREMIUM*100)+'% COGS and climbs '+Math.round(OT_STREAK_STEP*100)+' points for every consecutive month you run it, to +'+Math.round(otPremiumFor(OT_STREAK_MAX)*100)+'%. One clean month resets it.</p>'+
   '<p style="margin:12px 0 8px"><strong>Scored out of 100:</strong> case fill rate 30 · margin capture 25 · inventory position 20 · forecast error 15 · bias 10. Stocking out and overstocking are both punished, and freight comes straight out of margin capture.</p>'+
-  '<p style="margin:14px 0 8px"><strong>Start here.</strong> Press <em>Auto-fill from baseline</em>, then change only what you disagree with. Starting from blank is the most common way to lose. Press <strong>Enter</strong> to commit.</p>'+
+  '<p style="margin:12px 0 4px"><strong>Working the board.</strong> Sandbox opens with a build plan already on the table, so you can commit straight away and watch a cycle resolve. After that, <em>Auto-fill from baseline</em> gives you a starting point in one click — change only what you disagree with. Press <strong>Enter</strong> to commit.</p>'+
+  '</div></details>'+
   '<p style="margin:14px 0 8px"><strong>Pick a level.</strong></p>'+
   '<table><tbody>'+["sandbox","career","pressure"].map(function(k){var Mo=MODES[k];
     return '<tr><td style="width:158px"><span class="brand">'+Mo.name+'</span><br><span class="sub">'+Mo.tier+(Mo.clock?' · '+(Mo.clock/1000)+'s a cycle':'')+'</span></td>'+
@@ -1559,7 +1605,7 @@ function renderIntro(){
     '<input id="teamname" type="text" maxlength="28" value="'+esc(TEAM||"")+'" placeholder="optional" style="background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:6px 8px;border-radius:2px;width:180px"></label></div>'+
   '<div class="row" style="margin-top:10px"><button class="primary" id="begin">Start — shared seed</button><button id="beginr">Start — random seed</button></div>'+
   '<div class="dim" style="margin-top:8px;font-size:11.5px">The shared seed gives everyone the same twelve months, so scores are comparable. A random seed gives a fresh year for practice.</div>'+
-  '<div class="foot">Designed by Sushant Turekar · © 2026 · Illustrative CPG economics. No company data is used anywhere in this model.</div></div></div>';
+  '<div class="foot">Designed by <a href="https://www.linkedin.com/in/sushantturekar/" target="_blank" rel="noopener noreferrer" style="color:var(--dim);text-decoration:underline;text-underline-offset:2px">Sushant Turekar</a> · © 2026 · Illustrative CPG economics. No company data is used anywhere in this model.</div></div></div>';
   return h;
 }
 
