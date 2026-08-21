@@ -24,7 +24,7 @@
 <meta charset="utf-8" />
 <meta name="author" content="Sushant Turekar">
 <meta name="copyright" content="© 2026 Sushant Turekar">
-<meta name="description" content="The IBP Cycle — an integrated business planning simulator. Twelve monthly cycles across three brands and three supply regions, scored on service, margin, forecast accuracy and inventory. Designed by Sushant Turekar.">
+<meta name="description" content="The IBP Cycle, Gamified Edition — an integrated business planning simulator. Designed by Sushant Turekar.">
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>The IBP Cycle — an IBP simulator | Sushant Turekar</title>
 
@@ -65,6 +65,13 @@ h1,h2,h3,.disp{font-family:'Archivo',system-ui,sans-serif;letter-spacing:-.01em}
 .clock{text-align:right}
 .clock .big{font-family:'Archivo',sans-serif;font-size:30px;font-weight:800;line-height:1}
 .grid{display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:start}
+/* Grid and flex items default to min-width:auto, so a single wide child forces
+   the whole column past the viewport. Letting them shrink keeps every panel at
+   one width and confines scrolling to the element that actually needs it.    */
+.grid>div{min-width:0}
+.panel{min-width:0}
+.ph{min-width:0}
+.ph h3,.ph .note{min-width:0}
 @media(max-width:900px){.grid{grid-template-columns:1fr}.grid>div:last-child{order:-1}}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;margin-bottom:14px}
 .ph{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
@@ -160,6 +167,35 @@ details.rules>summary:before{content:'▸ ';color:var(--dimmer)}
 details.rules[open]>summary:before{content:'▾ '}
 details.rules>summary:hover{color:var(--ink)}
 details.rules .rb{padding:0 12px 12px}
+
+/* ---------- phone ----------
+   Dense tables scroll inside their own panel rather than stretching it, so the
+   page itself is never wider than the viewport and every panel lines up at the
+   same width. Without this a table pushes its panel past the screen edge and the
+   layout reads as ragged columns once you pinch out.                          */
+@media(max-width:760px){
+  body{padding:12px;font-size:12px}
+  .masthead{padding-bottom:10px;margin-bottom:10px}
+  .masthead h1{font-size:20px}
+  .clock .big{font-size:22px}
+  .pb{padding:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ph{padding:9px 10px;flex-wrap:wrap}
+  .ph .note{margin-left:0;flex-basis:100%}
+  table{min-width:520px}
+  .ledger table{min-width:640px}
+  /* the landing page is the one thing a phone visitor actually reads — let it wrap */
+  .intro table{min-width:0}
+  td{padding:5px 4px;font-size:11px}
+  th{font-size:9px;padding:0 4px 6px}
+  input[type=number]{width:62px;font-size:11px}
+  select{font-size:10.5px;padding:3px 4px}
+  .bal{min-width:96px}
+  .sig{font-size:11.5px}
+  .sig .tag{width:56px}
+  .kpi .v{font-size:17px}
+  button{padding:10px 12px;flex:1 1 auto}
+  .row{gap:8px}
+}
 
 /* ---------- narrow-screen notice ----------
    Most inbound traffic arrives from a phone, inside another app's browser.
@@ -264,10 +300,24 @@ function freightCost(units,m,mode){ return units*freightRate(m,mode); }
 /* __IBP_ATTRIBUTION__ build integrity block — do not remove */
 var __IBP_ATTRIBUTION__ = "U3VzaGFudCBUdXJla2FyfDIwMjYtMDgtMDh8VGhlIElCUCBDeWNsZXxvcmlnaW5hbCBkZXNpZ24=";
 var __IBP_FP__ = "g1-aircharter-trust";
-try{ console.log("%cThe IBP Cycle", "font:700 15px sans-serif;color:#3EB4C4",
+try{ console.log("%cThe IBP Cycle — Gamified", "font:700 15px sans-serif;color:#3EB4C4",
   "\n  Designed by Sushant Turekar\n  © 2026 Sushant Turekar. All rights reserved."); }catch(e){}
 
 var SEED = 20260805, SHARED_SEED = 20260805, TRADE_WOS = 4;
+
+/* ---------- forecast accuracy targets ----------
+   Calibrated to measured difficulty on the shared seed, not to lead time. Lead
+   time governs when production lands, not what horizon you predict — every lane
+   is forecast one month out, so regional MAPE comes in flat (21.6 / 20.5 / 21.0).
+   What actually drives error is demand volatility, which is a brand property:
+   a baseline forecaster scores 16.7 / 25.3 / 28.4 against vol of .07 / .16 / .26.
+   Targets sit modestly inside those, so hitting one means adding skill over the
+   statistical model rather than matching it.
+   Bias stays uniform: being consistently high or low is a habit, not noise, and
+   a volatile brand earns no right to be wrong in one direction.               */
+var MAPE_TARGET = { pain:0.15, sleep:0.22, gut:0.25 };
+var MAPE_TARGET_PORTFOLIO = 0.19;   /* volume-weighted blend of the three */
+var BIAS_TARGET = 0.08;
 
 var MODES = {
   career:  { key:"career",  name:"Career",  tier:"Timed",
@@ -460,7 +510,8 @@ function initialState(){
     policy:{pain:"fair",sleep:"fair",gut:"fair"}, ss:MODE.ss0,
     cum:{demand:0,shipped:0,rev:0,cogs:0,carry:0,waste:0,absErr:0,err:0,potRev:0,potCogs:0,potFreight:0,
          dohSum:0,dohN:0,otCost:0,lostGM:0,seaCost:0,airCost:0,airUnits:0,chtrUnits:0,
-         airPrem:0,chtrCost:0,airSavedUnits:0,airSavedGM:0,lostPM:zeroPM(0),lostGMPM:zeroPM(0)}
+         airPrem:0,chtrCost:0,airSavedUnits:0,airSavedGM:0,lostPM:zeroPM(0),lostGMPM:zeroPM(0),
+         absErrPM:zeroPM(0),errPM:zeroPM(0),demPM:zeroPM(0)}
   };
 }
 
@@ -511,6 +562,7 @@ function runCycle(){
   var lostGM=0, airSavedUnits=0, airSavedGM=0;
   var demand=zeroPM(), shipped=zeroPM(), offt=zeroPM(), wos=zeroPM(), lostBy={}, rev=0, cogs=0,
       lostPM=zeroPM(0), lostGMPM=zeroPM(0),
+      absErrPM=zeroPM(0), errPM=zeroPM(0), demPM=zeroPM(0),
       dTot=0, sTot=0, absErr=0, err=0, potRev=0, potCogs=0, potFreight=0;
   MARKETS.forEach(function(m){ lostBy[m.id]=0; });
   var trade=clone(st.trade);
@@ -531,6 +583,9 @@ function runCycle(){
     potRev += d*p.price*m.mult; potCogs += d*p.cogs; potFreight += d*FREIGHT[m.id];
     dTot+=d; sTot+=s;
     var f=forecast[p.id][m.id]; absErr+=Math.abs(f-d); err+=(f-d);
+    /* per-cell accuracy, so the year-end panel can say WHERE the forecast was weak.
+       Same weighted form as the portfolio number: sum|A-F| over sum A.          */
+    absErrPM[p.id][m.id]=Math.abs(f-d); errPM[p.id][m.id]=(f-d); demPM[p.id][m.id]=d;
   });});
 
   var stdUsed=0, baseCogs=0;
@@ -581,6 +636,9 @@ function runCycle(){
   PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){
     c.lostPM[p.id][m.id]+=lostPM[p.id][m.id];
     c.lostGMPM[p.id][m.id]+=lostGMPM[p.id][m.id];
+    c.absErrPM[p.id][m.id]+=absErrPM[p.id][m.id];
+    c.errPM[p.id][m.id]+=errPM[p.id][m.id];
+    c.demPM[p.id][m.id]+=demPM[p.id][m.id];
   });});
 
   if(otUnits>0){ st.flags.otMonths++; st.flags.otStreak++; if(st.flags.otStreak>st.flags.otStreakMax) st.flags.otStreakMax=st.flags.otStreak; }
@@ -1580,6 +1638,22 @@ function renderIntro(){
   '<tr><td><span class="brand">3 · Reconciliation</span></td><td style="text-align:left">Set safety-stock cover and decide which region goes short when supply cannot cover everyone.</td></tr>'+
   '<tr><td><span class="brand">4 · Management review</span></td><td style="text-align:left">Commit. The plan locks, demand realises, and the P&amp;L lands.</td></tr>'+
   '</tbody></table>'+
+
+  '<p style="margin:14px 0 8px"><strong>How you are scored.</strong> One hundred points across five measures.</p>'+
+  '<table><thead><tr><th>Measure</th><th>Pts</th><th>Target</th><th>What it means</th></tr></thead><tbody>'+
+  '<tr><td><span class="brand">Case fill rate</span></td><td>30</td><td class="dim">98%</td>'+
+    '<td style="text-align:left">The share of what customers ordered that you actually shipped. Miss it and the units are gone — an unfilled order is not backlog here, it is lost.</td></tr>'+
+  '<tr><td><span class="brand">Margin capture</span></td><td>25</td><td class="dim">92%</td>'+
+    '<td style="text-align:left">The margin you earned as a share of the margin that was <em>available</em> — what you would have made shipping every order with no overtime, no air freight and no excess stock. Not a margin percentage. 100% is unreachable by design, because any real plan carries some inventory.</td></tr>'+
+  '<tr><td><span class="brand">Inventory position</span></td><td>20</td><td class="dim">75 days</td>'+
+    '<td style="text-align:left">Average days of cover you held, counting goods in transit as well as warehouse stock. A band, not a floor — forty days over costs what forty days under costs.</td></tr>'+
+  '<tr><td><span class="brand">Forecast error</span></td><td>15</td><td class="dim">20%</td>'+
+    '<td style="text-align:left">MAPE. How far your consensus forecast landed from the orders that actually arrived, regardless of direction.</td></tr>'+
+  '<tr><td><span class="brand">Forecast bias</span></td><td>10</td><td class="dim">±8%</td>'+
+    '<td style="text-align:left">Whether you were consistently high or consistently low across the year. Error says how far off; bias says which way.</td></tr>'+
+  '</tbody></table>'+
+  '<div class="foot" style="margin-top:8px">Margin capture is deliberately not a margin rate. Margin <em>rate</em> improves when you stock out — you carry nothing and sell only the profitable units you happen to have — so scoring on rate would reward the exact failure this model exists to punish.</div>'+
+
   '<details class="rules"><summary>Full rules — lead times, freight, scoring</summary><div class="rb">'+
   '<p style="margin:4px 0 8px"><strong>The constraint everything follows from:</strong> what you build today does not help today — unless you pay ten times the freight rate to make it. That escape hatch is capped at '+fmt(AIR_POOL)+'K units a cycle, and it can only move units you already built.</p>'+
   '<table><thead><tr><th>Region</th><th>Sea lead time</th><th>Price realisation</th><th>Sea freight</th></tr></thead><tbody>'+
@@ -1591,7 +1665,7 @@ function renderIntro(){
   '<tr><td>Emergency charter</td><td>this cycle</td><td>'+AIR_CHTR+'×</td></tr>'+
   '</tbody></table>'+
   '<p style="margin:12px 0 8px"><strong>Overtime</strong> starts at +'+Math.round(OT_PREMIUM*100)+'% COGS and climbs '+Math.round(OT_STREAK_STEP*100)+' points for every consecutive month you run it, to +'+Math.round(otPremiumFor(OT_STREAK_MAX)*100)+'%. One clean month resets it.</p>'+
-  '<p style="margin:12px 0 8px"><strong>Scored out of 100:</strong> case fill rate 30 · margin capture 25 · inventory position 20 · forecast error 15 · bias 10. Stocking out and overstocking are both punished, and freight comes straight out of margin capture.</p>'+
+  '<p style="margin:12px 0 8px"><strong>On the scoring.</strong> Freight, overtime, carrying cost and write-offs all come straight out of margin capture, so every rescue you buy is priced. Auto-filling the statistical baseline every cycle scores about 33 — beat that and you are adding value over the model.</p>'+
   '<p style="margin:12px 0 4px"><strong>Working the board.</strong> Sandbox opens with a build plan already on the table, so you can commit straight away and watch a cycle resolve. After that, <em>Auto-fill from baseline</em> gives you a starting point in one click — change only what you disagree with. Press <strong>Enter</strong> to commit.</p>'+
   '</div></details>'+
   '<p style="margin:14px 0 8px"><strong>Pick a level.</strong></p>'+
@@ -1797,6 +1871,7 @@ function renderFired(){
   h+='<div class="foot">Three ways to lose this job exist. You found '+(f.rare?'the one most players never see.':'this one.')+'</div></div></div>';
 
   h+=serviceMatrix();
+  h+=accuracyMatrix();
   h+=freightROI();
 
   h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
@@ -1881,6 +1956,7 @@ function renderEnd(){
   }
 
   h+=serviceMatrix();
+  h+=accuracyMatrix();
   h+=freightROI();
 
   h+='<div class="panel"><div class="ph"><span class="step">↯</span><h3>Standing, cycle by cycle</h3></div><div class="pb">'+trustSpark()+'</div></div>';
@@ -2056,6 +2132,51 @@ function serviceMatrix(){
     h+='</tbody></table>';
   }
   h+='<div class="foot">Ranked by margin, not units. Contribution per unit runs from about $0.42 on ReliefMax into APAC to $2.86 on DigestEase — the same shortfall is not the same loss.</div></div></div>';
+  return h;
+}
+
+/* ---------- where the forecast was weak ----------
+   Cell MAPE uses the same weighted form as the portfolio number — sum|A-F| over
+   sum A — so the grid and the scorecard are the same measure at two altitudes. */
+function accuracyMatrix(){
+  var c=S.cum;
+  var totDem=0; PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ totDem+=c.demPM[p.id][m.id]; }); });
+  var h='<div class="panel"><div class="ph"><span class="step">±</span><h3>Where the forecast was weak</h3>'+
+        '<span class="note">MAPE by brand and lane · Σ|actual − forecast| ÷ Σ actual</span></div><div class="pb">';
+  if(totDem<=0){
+    h+='<div class="dim" style="padding:12px 0">No closed cycles to measure.</div></div></div>';
+    return h;
+  }
+  h+='<table><thead><tr><th>Brand</th>'+MARKETS.map(function(m){return '<th>'+m.short+'</th>';}).join('')+
+     '<th>Brand</th><th>Target</th><th>Bias</th></tr></thead><tbody>';
+  PRODUCTS.forEach(function(p){
+    var bAbs=0,bErr=0,bDem=0;
+    MARKETS.forEach(function(m){ bAbs+=c.absErrPM[p.id][m.id]; bErr+=c.errPM[p.id][m.id]; bDem+=c.demPM[p.id][m.id]; });
+    var bM=bDem>0?bAbs/bDem:0, bB=bDem>0?bErr/bDem:0, tgt=MAPE_TARGET[p.id];
+    h+='<tr><td><span class="brand">'+p.name+'</span><br><span class="sub">vol '+p.vol.toFixed(2)+'</span></td>'+
+      MARKETS.map(function(m){
+        var a=c.absErrPM[p.id][m.id], dm=c.demPM[p.id][m.id];
+        var v=dm>0?a/dm:0;
+        return '<td class="'+(v<=tgt?"good":(v<=tgt*1.35?"warn":"bad"))+'">'+pct(v)+'</td>';
+      }).join('')+
+      '<td class="'+(bM<=tgt?"good":"bad")+'">'+pct(bM)+'</td>'+
+      '<td class="dim">'+pct(tgt)+'</td>'+
+      '<td class="'+(Math.abs(bB)<=BIAS_TARGET?"good":"bad")+'">'+signed(bB*100)+'</td></tr>';
+  });
+  var pAbs=0,pErr=0;
+  PRODUCTS.forEach(function(p){ MARKETS.forEach(function(m){ pAbs+=c.absErrPM[p.id][m.id]; pErr+=c.errPM[p.id][m.id]; }); });
+  var pM=pAbs/totDem, pB=pErr/totDem;
+  h+='<tr class="tot"><td>Portfolio</td>'+MARKETS.map(function(m){
+      var a=0,dm=0; PRODUCTS.forEach(function(p){ a+=c.absErrPM[p.id][m.id]; dm+=c.demPM[p.id][m.id]; });
+      var v=dm>0?a/dm:0;
+      return '<td class="dim">'+pct(v)+'</td>';
+    }).join('')+
+    '<td class="'+(pM<=MAPE_TARGET_PORTFOLIO?"good":"bad")+'">'+pct(pM)+'</td>'+
+    '<td class="dim">'+pct(MAPE_TARGET_PORTFOLIO)+'</td>'+
+    '<td class="'+(Math.abs(pB)<=BIAS_TARGET?"good":"bad")+'">'+signed(pB*100)+'</td></tr>';
+  h+='</tbody></table>';
+  h+='<div class="foot">Targets are set per brand, not per region. Lead time decides when production <em>lands</em>, not what horizon you <em>predict</em> — every lane is forecast one month out, so regional error comes in flat. Volatility is what makes a brand hard: ReliefMax carries 0.07, DigestEase 0.26. '+
+     'NoctaRest in SA/EU is the hardest cell in the model on purpose — that is the promotional load-in and burn across cycles six to nine, and it is meant to be difficult. Bias is judged the same everywhere, because a consistent lean is a habit rather than noise. Accuracy here is diagnostic; the composite still scores the portfolio number.</div></div></div>';
   return h;
 }
 
